@@ -1,0 +1,95 @@
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { readFileSync } from 'fs';
+import { App, cert, initializeApp, ServiceAccount } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
+import { pushConfig, PushConfig } from '../../config/configuration';
+
+export interface PushMessage {
+  tokens: string[];
+  title: string;
+  body: string;
+  data: Record<string, string>;
+}
+
+export interface PushResult {
+  status: 'sent' | 'failed' | 'skipped';
+  provider: string;
+  successCount: number;
+  invalidTokens: string[];
+  error?: string;
+}
+
+const INVALID_TOKEN_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+  'messaging/invalid-argument',
+]);
+
+@Injectable()
+export class PushService {
+  private readonly logger = new Logger('Push');
+  private app?: App;
+
+  constructor(@Inject(pushConfig.KEY) private readonly config: PushConfig) {}
+
+  get enabled(): boolean {
+    return this.config.driver === 'fcm';
+  }
+
+  async send(message: PushMessage): Promise<PushResult> {
+    if (!this.enabled) {
+      return {
+        status: 'skipped',
+        provider: 'off',
+        successCount: 0,
+        invalidTokens: [],
+        error: 'Push is turned off (PUSH_DRIVER=off)',
+      };
+    }
+    if (!message.tokens.length) {
+      return {
+        status: 'skipped',
+        provider: 'fcm',
+        successCount: 0,
+        invalidTokens: [],
+        error: 'No registered device for this user',
+      };
+    }
+
+    const response = await getMessaging(this.firebase()).sendEachForMulticast({
+      tokens: message.tokens,
+      notification: { title: message.title, body: message.body },
+      data: message.data,
+      android: { priority: 'high', notification: { sound: 'default' } },
+      apns: { payload: { aps: { sound: 'default' } } },
+    });
+
+    const invalidTokens: string[] = [];
+    const errors: string[] = [];
+    response.responses.forEach((result, index) => {
+      if (result.success || !result.error) return;
+      if (INVALID_TOKEN_CODES.has(result.error.code)) invalidTokens.push(message.tokens[index]);
+      else errors.push(result.error.message);
+    });
+
+    if (response.successCount > 0) {
+      return { status: 'sent', provider: 'fcm', successCount: response.successCount, invalidTokens };
+    }
+    if (errors.length) throw new Error(errors[0]);
+    return {
+      status: 'failed',
+      provider: 'fcm',
+      successCount: 0,
+      invalidTokens,
+      error: 'Every device token was invalid',
+    };
+  }
+
+  private firebase(): App {
+    if (this.app) return this.app;
+    const account = JSON.parse(readFileSync(this.config.credentialsFile, 'utf8')) as ServiceAccount;
+    this.app = initializeApp({ credential: cert(account) }, 'school-api');
+    this.logger.log('Firebase messaging ready');
+    return this.app;
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "name": "telematics-api",
+  "name": "school-api",
   "version": "0.1.0",
   "private": true,
   "license": "UNLICENSED",
@@ -8,32 +8,43 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:local:win": "npm run migration:run && nest start --watch",
-    "start:prod": "node dist/main",
-    "lint": "eslint \"{src,test}/**/*.ts\"",
-    "format": "prettier --write \"{src,test}/**/*.ts\"",
-    "typeorm": "typeorm-ts-node-commonjs -d src/database/data-source.ts",
+    "start:prod": "node dist/apps/school-api/src/main",
+    "lint": "eslint \"{apps,libs,test}/**/*.ts\"",
+    "format": "prettier --write \"{apps,libs,test}/**/*.ts\"",
+    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d apps/school-api/src/database/data-source.ts",
     "migration:generate": "npm run typeorm -- migration:generate",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
+    "seed": "ts-node -r tsconfig-paths/register apps/school-api/src/database/seeds/run-seed.ts",
+    "seed:demo": "ts-node -r tsconfig-paths/register apps/school-api/src/database/seeds/run-demo-seed.ts",
+    "seed:super-admin": "ts-node -r tsconfig-paths/register apps/school-api/src/database/seeds/create-super-admin.ts",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",
     "@nestjs/config": "^3.3.0",
     "@nestjs/core": "^10.4.15",
+    "@nestjs/jwt": "^10.2.0",
     "@nestjs/microservices": "^10.4.15",
     "@nestjs/platform-express": "^10.4.15",
+    "@nestjs/schedule": "^4.1.2",
     "@nestjs/swagger": "^8.1.0",
     "@nestjs/typeorm": "^10.0.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.7",
+    "firebase-admin": "^14.5.0",
+    "kafkajs": "^2.2.4",
     "mqtt": "^5.10.3",
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.35.5",
     "typeorm": "^0.3.20"
   },
   "devDependencies": {
@@ -42,6 +53,7 @@
     "@nestjs/testing": "^10.4.15",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
+    "@types/multer": "^2.3.0",
     "@types/node": "^22.10.2",
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
@@ -58,5 +70,35 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.2"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/apps/",
+      "<rootDir>/libs/"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "apps/**/*.ts",
+      "libs/**/*.ts",
+      "!**/migrations/**",
+      "!**/main.ts",
+      "!**/*.module.ts",
+      "!**/seeds/**"
+    ],
+    "coverageDirectory": "./coverage",
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^@app/common(|/.*)$": "<rootDir>/libs/common/src/$1",
+      "^@app/telematics(|/.*)$": "<rootDir>/libs/telematics/src/$1"
+    }
   }
 }

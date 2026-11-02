@@ -1,0 +1,108 @@
+import { ConfigType, registerAs } from '@nestjs/config';
+
+const list = (value?: string) =>
+  (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+export const appConfig = registerAs('app', () => {
+  const port = Number(process.env.PORT ?? 3000);
+  return {
+    env: process.env.NODE_ENV ?? 'development',
+    host: process.env.HOST ?? '::',
+    port,
+    timeZone: process.env.APP_TIMEZONE ?? 'Asia/Kolkata',
+    corsOrigins: list(process.env.CORS_ORIGINS),
+    publicUrl: (process.env.PUBLIC_BASE_URL || `http://localhost:${port}`).replace(/\/$/, ''),
+  };
+});
+
+export const dbConfig = registerAs('db', () => ({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT ?? 5432),
+  username: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  ssl: process.env.DB_SSL === 'true',
+  poolSize: Number(process.env.DB_POOL_SIZE ?? 10),
+}));
+
+export const authConfig = registerAs('auth', () => ({
+  accessSecret: process.env.JWT_ACCESS_SECRET ?? '',
+  accessTtlSeconds: Number(process.env.JWT_ACCESS_TTL_SECONDS ?? 3600),
+  refreshTtlDays: Number(process.env.REFRESH_TTL_DAYS ?? 30),
+}));
+
+export const otpConfig = registerAs('otp', () => ({
+  mode: (process.env.OTP_MODE ?? 'test') as 'test' | 'sms',
+  testCode: process.env.OTP_TEST_CODE ?? '123456',
+  ttlSeconds: Number(process.env.OTP_TTL_SECONDS ?? 600),
+  maxAttempts: Number(process.env.OTP_MAX_ATTEMPTS ?? 5),
+  resendSeconds: Number(process.env.OTP_RESEND_SECONDS ?? 30),
+  maxPerWindow: Number(process.env.OTP_MAX_PER_WINDOW ?? 5),
+  windowMinutes: Number(process.env.OTP_WINDOW_MINUTES ?? 15),
+}));
+
+export const smsConfig = registerAs('sms', () => ({
+  driver: (process.env.SMS_DRIVER ?? 'log') as 'log' | 'ping4sms' | 'kafka',
+  otpDriver: (process.env.OTP_SMS_DRIVER ?? 'ping4sms') as 'ping4sms' | 'kafka',
+  pingUrl: process.env.PING_API_URL ?? 'http://site.ping4sms.com/api/smsapi',
+  pingApiKey: process.env.PING_API_KEY ?? '',
+  pingRoute: process.env.PING_ROUTE ?? '',
+  pingSender: process.env.PING_SENDER ?? '',
+  pingOtpTemplateId: process.env.PING_OTP_TEMPLATE_ID ?? '',
+}));
+
+export const kafkaNotifyConfig = registerAs('kafkaNotify', () => ({
+  brokers: list(process.env.NOTIFY_KAFKA_BROKER),
+  username: process.env.NOTIFY_KAFKA_USER ?? '',
+  password: process.env.NOTIFY_KAFKA_PASSWORD ?? '',
+  ssl: process.env.NOTIFY_KAFKA_SSL === 'true',
+  topic: process.env.NOTIFY_KAFKA_TOPIC || 'notifications',
+  clientId: process.env.NOTIFY_KAFKA_CLIENT_ID || 'school-api',
+  tenantId: process.env.NOTIFY_TENANT_ID ?? '',
+  templatePrefix: process.env.NOTIFY_TEMPLATE_PREFIX ?? 'school_',
+  logEnabled: process.env.NOTIFY_KAFKA_LOG === 'true',
+}));
+
+export const pushConfig = registerAs('push', () => ({
+  driver: (process.env.PUSH_DRIVER ?? 'off') as 'off' | 'fcm',
+  credentialsFile: process.env.FIREBASE_CREDENTIALS_FILE ?? '',
+}));
+
+export const storageConfig = registerAs('storage', () => ({
+  driver: (process.env.STORAGE_DRIVER ?? 'local') as 'local',
+  localDir: process.env.STORAGE_LOCAL_DIR ?? 'uploads',
+  maxFileMb: Number(process.env.FILE_MAX_MB ?? 10),
+  urlTtlSeconds: Number(process.env.FILE_URL_TTL_SECONDS ?? 3600),
+  signingSecret: process.env.FILE_SIGNING_SECRET ?? '',
+  virusScan: (process.env.VIRUS_SCAN ?? 'off') as 'off',
+}));
+
+export const queueConfig = registerAs('queue', () => ({
+  driver: (process.env.QUEUE_DRIVER ?? 'memory') as 'memory',
+  maxRetries: Number(process.env.QUEUE_MAX_RETRIES ?? 3),
+}));
+
+export type AppConfig = ConfigType<typeof appConfig>;
+export type DbConfig = ConfigType<typeof dbConfig>;
+export type AuthConfig = ConfigType<typeof authConfig>;
+export type OtpConfig = ConfigType<typeof otpConfig>;
+export type SmsConfig = ConfigType<typeof smsConfig>;
+export type KafkaNotifyConfig = ConfigType<typeof kafkaNotifyConfig>;
+export type PushConfig = ConfigType<typeof pushConfig>;
+export type StorageConfig = ConfigType<typeof storageConfig>;
+export type QueueConfig = ConfigType<typeof queueConfig>;
+
+export const ALL_CONFIGS = [
+  appConfig,
+  dbConfig,
+  authConfig,
+  otpConfig,
+  smsConfig,
+  kafkaNotifyConfig,
+  pushConfig,
+  storageConfig,
+  queueConfig,
+];

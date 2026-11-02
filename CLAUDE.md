@@ -1,0 +1,124 @@
+# CLAUDE.md — School Management API
+
+NestJS 10 backend for the Tamilzorous School Management System. One API and **one PostgreSQL database** serve the Admin web (`C:\Users\DELL\Telamatics_web`) and the Flutter app (Staff, Parent and Driver roles). Bus tracking is a Telematics plug-in library that receives GPS/OBD data over MQTT.
+
+Read `docs/api-guide.md` before changing anything a client sees.
+
+## Commands
+
+```bash
+npm run start:dev            # watch mode, http://localhost:3000/api/v1, Swagger at /api/docs
+npm run build                # nest build -> dist/apps/school-api/src/main.js
+npm run lint                 # must be clean before commit
+npm run format               # prettier
+npm test                     # unit tests, no database needed
+npm run test:e2e             # smoke tests, needs a migrated database
+npm run migration:generate -- apps/school-api/src/database/migrations/Name
+npm run migration:run
+npm run seed                 # roles, permissions, templates (production-safe)
+npm run seed:demo            # local only: demo school + users (seeds/demo.data.ts)
+npm run seed:super-admin -- --mobile 9xxxxxxxxx --name "Full Name"
+```
+
+Dev sign-in (after `seed:demo`): super admin `9999999999`, school admin `9876543210`, demo users `9000000001`–`9000000008` (one per role), OTP `123456` (`OTP_MODE=test`).
+
+Schools and school users are data, created through the API by a super admin. Never put school names, codes or admin numbers in `.env`.
+
+## Structure (modular monolith, NestJS monorepo layout)
+
+```
+apps/school-api/src/        the school app
+  main.ts app.module.ts app.setup.ts swagger.ts
+  config/                   configuration.ts (typed config) + env.validation.ts (fails fast)
+  database/                 data-source.ts (CLI), database.module.ts, migrations/, seeds/run-seed.ts
+  shared/                   mobile.ts (IsMobile, normalizeMobile), crypto.ts (hmac, safeEqual)
+  modules/<feature>/        controller, service, dto/, entities/, *.spec.ts
+libs/common/src/            @app/common — shared by everything; imports nothing from apps
+libs/telematics/src/        @app/telematics — bus plug-in; never touches student data
+test/                       e2e specs
+```
+
+Import shared code through the aliases `@app/common` and `@app/telematics`, never with `../../libs/...`.
+
+## Hard rules
+
+- **No code comments.** Names and small functions explain the code.
+- **Integer primary keys**, never UUIDs. Extend `BaseEntity`, `TrackedEntity` (adds `created_by`, filled automatically) or `SchoolScopedEntity` (adds `school_id`) from `@app/common`.
+- **snake_case** for every column, DTO field and JSON key.
+- **Every school-owned table has `school_id`.** Non-super-admin queries filter by `actor.school_id`.
+- **No cascade delete on people tables** (users, students, staff, guardians). Use soft delete.
+- **Times** are `timestamptz`; responses are converted to `APP_TIMEZONE` (+05:30) by the interceptor.
+- **One database.** Mobile endpoints are thin controllers over the same services and tables as admin endpoints. Never create mobile-only tables that duplicate data.
+- **Never hardcode hosts, keys or passwords.** Everything comes from `.env` and is validated in `env.validation.ts`. Add new settings to `.env.example` with a placeholder.
+- **Never commit `.env`.**
+
+## API conventions
+
+- URI versioning: every route is `/api/v1/...` by default. Add `v2` only for a breaking change and keep `v1` working (`@Controller({ path, version: '2' })` or `@Version('2')`).
+- Route families: `auth/*`, `me/*` (all apps), `admin/*` (web), `mobile/parent|teacher|driver/*` (Flutter screens), `fleet/*` (telematics), `files/*`.
+- Success body `{ status, message, data }` is added by `ResponseInterceptor`; controllers return plain data. Set the message with `@ResponseMessage('User created')`.
+- Lists return `paginate(...)`: `{ items, total, page, limit, total_pages, has_next }`.
+- Errors: throw `AppException.notFound('Student not found', 'STUDENT_NOT_FOUND')` etc. **No try/catch in controllers.** `AllExceptionsFilter` is the only error handler and returns `{ status, error, message, errors? }`. The `error` code is what clients switch on, so keep codes stable and SCREAMING_SNAKE_CASE.
+- Validation: global pipe has `whitelist` + `forbidNonWhitelisted`; field errors come back as `errors: [{ field, message }]`.
+- Swagger on every endpoint: `@ApiTags('Admin · Students')`, `@ApiBearerAuth()`, `@ApiOperation({ summary })`, `@ApiEnvelope(Dto, { paginated })`, `@ApiErrors(...)`. Response shapes are classes in `dto/*.dto.ts` with `@ApiProperty({ example })`.
+
+## Auth and permissions
+
+- `JwtAuthGuard` and `PermissionsGuard` are global. **Every route requires a token** unless marked `@Public()`.
+- Restrict with `@RequirePermissions(PERMISSIONS.X)` (admin) or `@RequireRoles(ROLES.PARENT)` (mobile). Read the caller with `@CurrentUser() user: AuthUser`.
+- New permissions go in `modules/access/access.catalog.ts` (`PERMISSIONS`, `PERMISSION_CATALOG`, role mapping in `ROLE_CATALOG`), then `npm run seed`. Fleet permissions live in `libs/telematics/src/telematics.permissions.ts`.
+- Refresh tokens rotate; reuse of an old one revokes the session. Deactivating or deleting a user revokes all sessions and push devices.
+
+## Lists and search
+
+Extend `ListQueryDto` (page, limit, search, sort, order) and add filters with validators. In the service:
+
+```ts
+const qb = this.repo.createQueryBuilder('s');
+if (query.status) qb.andWhere('s.status = :status', { status: query.status });
+return listQuery(qb, query, {
+  searchable: ['s.name', 's.admission_no'],
+  sortable: { created_at: 's.created_at', name: 's.name' },
+  defaultSort: 'created_at',
+});
+```
+
+Every search word must match one searchable column; LIKE wildcards are escaped. Unknown `sort` returns `INVALID_SORT`. Pages that show insight cards get a separate `GET .../insights` endpoint returning counts.
+
+## Adding a module (checklist)
+
+1. `modules/<feature>/entities/*.entity.ts` extending a base entity; register with `TypeOrmModule.forFeature`.
+2. `npm run migration:generate -- apps/school-api/src/database/migrations/<Name>`, review the SQL, run it.
+3. DTOs with class-validator rules and Swagger examples; list query extends `ListQueryDto`.
+4. Service with the business rules and school scoping.
+5. Admin controller under `admin/<feature>`; mobile controller under `mobile/<role>/<feature>` reusing the same service.
+6. Permissions in `access.catalog.ts` if needed; seed data in `run-seed.ts`.
+7. Unit tests `*.spec.ts` next to the service. `npm run lint && npm test && npm run build` must pass.
+8. Update `docs/api-guide.md` when a client-visible contract changes.
+
+## Notifications
+
+Send through `NotificationsService.dispatch({ template, audience, data })`:
+- `audience`: `{ user_ids }` or `{ roles, school_id }`.
+- Templates (English + Tamil) are in `notifications/notification-templates.catalog.ts`; add new ones there and run the seed.
+- Flow: in-app row → push via FCM (`PUSH_DRIVER`) → SMS when the template says `always`, or `fallback` and push did not reach a phone. Every attempt is a row in `notifications` (the outbox).
+- Jobs run on the in-process queue (`QUEUE_DRIVER=memory`) with retries; queued jobs are lost on restart.
+
+## SMS and Kafka
+
+- `SMS_DRIVER=log` writes to the outbox only. `ping4sms` sends directly (needs a DLT template id per template). `kafka` publishes to the central Tamilzorous notification service, the same pattern as `NOOL360/softsilk_api`.
+- Kafka message on topic `NOTIFY_KAFKA_TOPIC` (default `notifications`): `{ type: 'sms'|'email', tenantId, to: '91XXXXXXXXXX', templateId, variables }`. `templateId` = `NOTIFY_TEMPLATE_PREFIX` + lowercase template code (`school_student_absent`). Variables are the dispatch `data` plus `name`.
+- `OTP_SMS_DRIVER` picks the OTP route: `ping4sms` (DLT OTP template, same text as SoftSilk) or `kafka` (shared `otp` template).
+- Code: `modules/sms/sms.service.ts`, `modules/sms/kafka-notify.service.ts`.
+
+## Infrastructure switches
+
+No Docker is required in this phase. `STORAGE_DRIVER=local`, `QUEUE_DRIVER=memory`, `VIRUS_SCAN=off`. S3, Redis, ClamAV, TimescaleDB and EMQX come later behind the same switches; do not add hard dependencies on them.
+
+## Gotchas
+
+- **ES2022 class fields**: a DTO property with no class-validator decorator still exists on the instance and fails `forbidNonWhitelisted`. Every input property needs a validator; Swagger-only fields (like multipart `file`) go in an `@ApiBody({ schema })` instead.
+- **`user` is a reserved word in Postgres.** Use the alias `u` in query builders and raw SQL.
+- Upload files are read through `@UploadedFile()`; body fields still need a validated DTO.
+- `nest-cli.json` `entryFile` is `apps/school-api/src/main`; the TypeORM CLI and seed run through `ts-node -r tsconfig-paths/register`.
+- Keep `docs/api-guide.md`, Swagger and the web app's `src/features/*/api.ts` types in sync when a payload changes.

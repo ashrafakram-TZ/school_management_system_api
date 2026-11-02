@@ -1,0 +1,275 @@
+import { plainToInstance, Transform } from 'class-transformer';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsTimeZone,
+  IsUrl,
+  Matches,
+  Max,
+  Min,
+  MinLength,
+  ValidateIf,
+  validateSync,
+} from 'class-validator';
+
+const toBoolean = ({ value }: { value: unknown }) => value === true || value === 'true';
+
+const otpSms = (env: EnvironmentVariables) => env.OTP_MODE === 'sms';
+const usesPing = (env: EnvironmentVariables) =>
+  env.SMS_DRIVER === 'ping4sms' || (otpSms(env) && env.OTP_SMS_DRIVER === 'ping4sms');
+const usesKafka = (env: EnvironmentVariables) =>
+  env.SMS_DRIVER === 'kafka' || (otpSms(env) && env.OTP_SMS_DRIVER === 'kafka');
+
+export class EnvironmentVariables {
+  @IsIn(['development', 'production', 'test'])
+  NODE_ENV: string = 'development';
+
+  @IsString()
+  @IsNotEmpty()
+  HOST: string = '::';
+
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  PORT: number = 3000;
+
+  @IsTimeZone()
+  APP_TIMEZONE: string = 'Asia/Kolkata';
+
+  @IsOptional()
+  @IsString()
+  CORS_ORIGINS?: string;
+
+  @ValidateIf((env: EnvironmentVariables) => Boolean(env.PUBLIC_BASE_URL))
+  @IsUrl(
+    { require_tld: false, require_protocol: true },
+    { message: 'PUBLIC_BASE_URL must be a full URL such as http://192.168.1.71:3000' },
+  )
+  PUBLIC_BASE_URL?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  DB_HOST: string;
+
+  @IsInt()
+  DB_PORT: number = 5432;
+
+  @IsString()
+  @IsNotEmpty()
+  DB_USER: string;
+
+  @IsString()
+  DB_PASSWORD: string;
+
+  @IsString()
+  @IsNotEmpty()
+  DB_NAME: string;
+
+  @Transform(toBoolean)
+  @IsBoolean()
+  DB_SSL: boolean = false;
+
+  @IsInt()
+  @Min(1)
+  DB_POOL_SIZE: number = 10;
+
+  @Transform(toBoolean)
+  @IsBoolean()
+  MQTT_ENABLED: boolean = false;
+
+  @ValidateIf((env: EnvironmentVariables) => env.MQTT_ENABLED)
+  @IsString()
+  @IsNotEmpty()
+  MQTT_URL: string;
+
+  @IsOptional()
+  @IsString()
+  MQTT_USERNAME?: string;
+
+  @IsOptional()
+  @IsString()
+  MQTT_PASSWORD?: string;
+
+  @ValidateIf((env: EnvironmentVariables) => env.MQTT_ENABLED)
+  @IsString()
+  @IsNotEmpty()
+  MQTT_CLIENT_ID: string;
+
+  @IsString()
+  @IsNotEmpty()
+  MQTT_TOPIC_FILTER: string = 'telematics/+/telemetry';
+
+  @IsString()
+  @MinLength(32, { message: 'JWT_ACCESS_SECRET must be at least 32 characters' })
+  JWT_ACCESS_SECRET: string;
+
+  @IsInt()
+  @Min(60)
+  @Max(86400)
+  JWT_ACCESS_TTL_SECONDS: number = 3600;
+
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  REFRESH_TTL_DAYS: number = 30;
+
+  @IsIn(['test', 'sms'])
+  OTP_MODE: string = 'test';
+
+  @Matches(/^\d{6}$/, { message: 'OTP_TEST_CODE must be 6 digits' })
+  OTP_TEST_CODE: string = '123456';
+
+  @IsInt()
+  @Min(60)
+  @Max(1800)
+  OTP_TTL_SECONDS: number = 600;
+
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  OTP_MAX_ATTEMPTS: number = 5;
+
+  @IsInt()
+  @Min(10)
+  @Max(300)
+  OTP_RESEND_SECONDS: number = 30;
+
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  OTP_MAX_PER_WINDOW: number = 5;
+
+  @IsInt()
+  @Min(1)
+  @Max(1440)
+  OTP_WINDOW_MINUTES: number = 15;
+
+  @IsIn(['log', 'ping4sms', 'kafka'])
+  SMS_DRIVER: string = 'log';
+
+  @IsIn(['ping4sms', 'kafka'])
+  OTP_SMS_DRIVER: string = 'ping4sms';
+
+  @ValidateIf(usesPing)
+  @IsString()
+  @IsNotEmpty()
+  PING_API_KEY: string;
+
+  @ValidateIf(usesPing)
+  @IsString()
+  @IsNotEmpty()
+  PING_ROUTE: string;
+
+  @ValidateIf(usesPing)
+  @IsString()
+  @IsNotEmpty()
+  PING_SENDER: string;
+
+  @ValidateIf(usesPing)
+  @IsString()
+  @IsNotEmpty()
+  PING_OTP_TEMPLATE_ID: string;
+
+  @ValidateIf(usesKafka)
+  @IsString()
+  @IsNotEmpty({ message: 'NOTIFY_KAFKA_BROKER is required when SMS goes through Kafka (host:port, comma-separated)' })
+  NOTIFY_KAFKA_BROKER: string;
+
+  @ValidateIf(usesKafka)
+  @IsString()
+  @IsNotEmpty()
+  NOTIFY_KAFKA_USER: string;
+
+  @ValidateIf(usesKafka)
+  @IsString()
+  @IsNotEmpty()
+  NOTIFY_KAFKA_PASSWORD: string;
+
+  @ValidateIf(usesKafka)
+  @IsString()
+  @IsNotEmpty({ message: 'NOTIFY_TENANT_ID is required when SMS goes through Kafka' })
+  NOTIFY_TENANT_ID: string;
+
+  @Transform(toBoolean)
+  @IsBoolean()
+  NOTIFY_KAFKA_SSL: boolean = false;
+
+  @IsString()
+  @Matches(/^[\w.-]+$/, { message: 'NOTIFY_KAFKA_TOPIC must be a valid topic name' })
+  NOTIFY_KAFKA_TOPIC: string = 'notifications';
+
+  @IsString()
+  @Matches(/^[\w-]+$/, { message: 'NOTIFY_KAFKA_CLIENT_ID must be letters, digits, _ or -' })
+  NOTIFY_KAFKA_CLIENT_ID: string = 'school-api';
+
+  @IsString()
+  @Matches(/^[a-z0-9_]*$/, { message: 'NOTIFY_TEMPLATE_PREFIX must be lowercase letters, digits or _' })
+  NOTIFY_TEMPLATE_PREFIX: string = 'school_';
+
+  @Transform(toBoolean)
+  @IsBoolean()
+  NOTIFY_KAFKA_LOG: boolean = false;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false, require_protocol: true })
+  PING_API_URL?: string;
+
+  @IsIn(['off', 'fcm'])
+  PUSH_DRIVER: string = 'off';
+
+  @ValidateIf((env: EnvironmentVariables) => env.PUSH_DRIVER === 'fcm')
+  @IsString()
+  @IsNotEmpty()
+  FIREBASE_CREDENTIALS_FILE: string;
+
+  @IsIn(['local'], { message: 'STORAGE_DRIVER supports local in this phase; s3 comes with the infrastructure phase' })
+  STORAGE_DRIVER: string = 'local';
+
+  @IsString()
+  @IsNotEmpty()
+  STORAGE_LOCAL_DIR: string = 'uploads';
+
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  FILE_MAX_MB: number = 10;
+
+  @IsInt()
+  @Min(60)
+  @Max(604800)
+  FILE_URL_TTL_SECONDS: number = 3600;
+
+  @IsString()
+  @MinLength(32, { message: 'FILE_SIGNING_SECRET must be at least 32 characters' })
+  FILE_SIGNING_SECRET: string;
+
+  @IsIn(['off'], { message: 'VIRUS_SCAN supports off in this phase; clamav comes with the infrastructure phase' })
+  VIRUS_SCAN: string = 'off';
+
+  @IsIn(['memory'], {
+    message: 'QUEUE_DRIVER supports memory in this phase; redis comes with the infrastructure phase',
+  })
+  QUEUE_DRIVER: string = 'memory';
+
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  QUEUE_MAX_RETRIES: number = 3;
+}
+
+export function validate(config: Record<string, unknown>): EnvironmentVariables {
+  const env = plainToInstance(EnvironmentVariables, config, { enableImplicitConversion: true });
+  if (env.NODE_ENV === 'production' && env.OTP_MODE === 'test') {
+    throw new Error('Invalid env OTP_MODE: test mode is not allowed in production');
+  }
+  const [error] = validateSync(env);
+  if (error) {
+    const reason = Object.values(error.constraints ?? {})[0] ?? 'is invalid';
+    throw new Error(`Invalid env ${error.property}: ${reason}`);
+  }
+  return env;
+}
