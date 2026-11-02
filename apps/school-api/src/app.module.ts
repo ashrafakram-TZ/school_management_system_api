@@ -14,7 +14,9 @@ import { HealthModule } from './modules/health/health.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SchoolsModule } from './modules/schools/schools.module';
+import { SetupModule } from './modules/setup/setup.module';
 import { SmsModule } from './modules/sms/sms.module';
+import { StudentsModule } from './modules/students/students.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -25,6 +27,8 @@ import { UsersModule } from './modules/users/users.module';
     HealthModule,
     SmsModule,
     SchoolsModule,
+    SetupModule,
+    StudentsModule,
     AccessModule,
     UsersModule,
     AuthModule,

@@ -1,6 +1,7 @@
 import { IsNull } from 'typeorm';
 import { School } from '../../modules/schools/entities/school.entity';
 import { DEMO_PLATFORM_USERS, DEMO_SCHOOL, DEMO_SCHOOL_USERS } from './demo.data';
+import { seedDemoAcademics } from './demo-academics';
 import { runSeed, seedCatalog, upsertUser } from './seed-helpers';
 
 if (process.env.NODE_ENV === 'production') {
@@ -24,4 +25,6 @@ runSeed('Demo seed', async (manager) => {
     const result = await upsertUser(manager, roles, school.id, seed);
     console.log(`${school.code}      ${seed.mobile}  ${seed.name.padEnd(24)} ${seed.roles.join('+')}: ${result}`);
   }
+
+  await seedDemoAcademics(manager, school);
 });

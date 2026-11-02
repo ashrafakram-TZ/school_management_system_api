@@ -1,0 +1,130 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
+import { AppException, AuthUser, listQuery, Paginated } from '@app/common';
+import { ROLES } from '../access/access.catalog';
+import { NotificationsService } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
+import { CreateSchoolDto, SchoolDto, SchoolQueryDto, UpdateCurrentSchoolDto, UpdateSchoolDto } from './dto/school.dto';
+import { School } from './entities/school.entity';
+
+@Injectable()
+export class SchoolsService {
+  constructor(
+    @InjectRepository(School) private readonly schools: Repository<School>,
+    private readonly users: UsersService,
+    private readonly notifications: NotificationsService,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  async list(query: SchoolQueryDto): Promise<Paginated<SchoolDto>> {
+    const qb = this.schools.createQueryBuilder('school');
+    if (query.is_active !== undefined) qb.andWhere('school.is_active = :active', { active: query.is_active });
+    const page = await listQuery(qb, query, {
+      searchable: ['school.name', 'school.code', 'school.city'],
+      sortable: { created_at: 'school.created_at', name: 'school.name', code: 'school.code' },
+      defaultSort: 'name',
+    });
+    const counts = await this.counts(page.items.map((school) => school.id));
+    return { ...page, items: page.items.map((school) => this.present(school, counts)) };
+  }
+
+  async get(id: number): Promise<SchoolDto> {
+    const school = await this.find(id);
+    return this.present(school, await this.counts([id]));
+  }
+
+  async create(dto: CreateSchoolDto, actor: AuthUser): Promise<SchoolDto> {
+    if (dto.admin_name && !dto.admin_mobile)
+      throw AppException.badRequest('Enter the admin mobile number', 'ADMIN_MOBILE_REQUIRED');
+    if (dto.admin_mobile && !dto.admin_name)
+      throw AppException.badRequest('Enter the admin name', 'ADMIN_NAME_REQUIRED');
+    if (await this.schools.findOneBy({ code: dto.code, deleted_at: IsNull() })) {
+      throw AppException.conflict(`School code ${dto.code} is already used`, 'SCHOOL_CODE_TAKEN');
+    }
+    if (dto.admin_mobile && (await this.users.findActiveByMobile(dto.admin_mobile))) {
+      throw AppException.conflict('A user with this mobile number already exists', 'MOBILE_TAKEN');
+    }
+
+    const { admin_name: adminName, admin_mobile: adminMobile, ...profile } = dto;
+    const school = await this.schools.save(this.schools.create({ ...profile, timezone: 'Asia/Kolkata' }));
+    if (adminName && adminMobile) {
+      const admin = await this.users.create(
+        { name: adminName, mobile: adminMobile, role_codes: [ROLES.ADMIN], school_id: school.id },
+        actor,
+      );
+      await this.notifications.dispatch({
+        template: 'ACCOUNT_INVITE',
+        audience: { user_ids: [admin.id] },
+        data: { school: school.name, app: 'admin console' },
+      });
+    }
+    return this.get(school.id);
+  }
+
+  async update(id: number, dto: UpdateSchoolDto): Promise<SchoolDto> {
+    const school = await this.find(id);
+    if (
+      dto.code &&
+      dto.code !== school.code &&
+      (await this.schools.findOneBy({ code: dto.code, deleted_at: IsNull() }))
+    ) {
+      throw AppException.conflict(`School code ${dto.code} is already used`, 'SCHOOL_CODE_TAKEN');
+    }
+    await this.schools.update(id, dto);
+    return this.get(id);
+  }
+
+  async updateCurrent(id: number, dto: UpdateCurrentSchoolDto): Promise<SchoolDto> {
+    await this.find(id);
+    await this.schools.update(id, dto);
+    return this.get(id);
+  }
+
+  async find(id: number): Promise<School> {
+    const school = await this.schools.findOneBy({ id });
+    if (!school) throw AppException.notFound('School not found', 'SCHOOL_NOT_FOUND');
+    return school;
+  }
+
+  private async counts(ids: number[]): Promise<Map<number, { students: number; users: number }>> {
+    const result = new Map(ids.map((id) => [id, { students: 0, users: 0 }]));
+    if (!ids.length) return result;
+    const rows: { school_id: number; students: string; users: string }[] = await this.dataSource.query(
+      `SELECT s.id AS school_id,
+              (SELECT COUNT(*) FROM students st WHERE st.school_id = s.id AND st.deleted_at IS NULL AND st.status = 'active') AS students,
+              (SELECT COUNT(*) FROM users u WHERE u.school_id = s.id AND u.deleted_at IS NULL) AS users
+       FROM schools s WHERE s.id = ANY($1)`,
+      [ids],
+    );
+    rows.forEach((row) =>
+      result.set(Number(row.school_id), { students: Number(row.students), users: Number(row.users) }),
+    );
+    return result;
+  }
+
+  private present(school: School, counts: Map<number, { students: number; users: number }>): SchoolDto {
+    const count = counts.get(school.id) ?? { students: 0, users: 0 };
+    return {
+      id: school.id,
+      name: school.name,
+      code: school.code,
+      board: school.board,
+      address: school.address,
+      city: school.city,
+      state: school.state,
+      pincode: school.pincode,
+      phone: school.phone,
+      emergency_phone: school.emergency_phone,
+      email: school.email,
+      latitude: school.latitude,
+      longitude: school.longitude,
+      geofence_radius_m: school.geofence_radius_m,
+      timezone: school.timezone,
+      is_active: school.is_active,
+      student_count: count.students,
+      user_count: count.users,
+      created_at: school.created_at,
+    };
+  }
+}

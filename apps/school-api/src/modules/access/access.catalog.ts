@@ -7,6 +7,10 @@ export const PERMISSIONS = {
   ROLES_VIEW: 'roles.view',
   SCHOOLS_VIEW: 'schools.view',
   SCHOOLS_MANAGE: 'schools.manage',
+  PLATFORM_SCHOOLS: 'platform.schools',
+  STUDENTS_VIEW: 'students.view',
+  STUDENTS_MANAGE: 'students.manage',
+  ADMISSIONS_MANAGE: 'admissions.manage',
   NOTIFICATIONS_VIEW: 'notifications.view',
   NOTIFICATIONS_SEND: 'notifications.send',
   FLEET_VIEW: FLEET_PERMISSIONS.VIEW,
@@ -25,6 +29,10 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
   { code: PERMISSIONS.ROLES_VIEW, name: 'View roles and permissions', group: 'Users' },
   { code: PERMISSIONS.SCHOOLS_VIEW, name: 'View school setup', group: 'School' },
   { code: PERMISSIONS.SCHOOLS_MANAGE, name: 'Edit school setup and masters', group: 'School' },
+  { code: PERMISSIONS.PLATFORM_SCHOOLS, name: 'Create schools and switch between them', group: 'Platform' },
+  { code: PERMISSIONS.STUDENTS_VIEW, name: 'View students, parents and guardians', group: 'Students' },
+  { code: PERMISSIONS.STUDENTS_MANAGE, name: 'Edit students, guardians, classes and roll numbers', group: 'Students' },
+  { code: PERMISSIONS.ADMISSIONS_MANAGE, name: 'Take applications, approve, reject and enrol', group: 'Students' },
   { code: PERMISSIONS.NOTIFICATIONS_VIEW, name: 'View sent notifications and the SMS outbox', group: 'Communication' },
   { code: PERMISSIONS.NOTIFICATIONS_SEND, name: 'Send notifications and test messages', group: 'Communication' },
   ...FLEET_PERMISSION_CATALOG,
@@ -50,10 +58,12 @@ export interface RoleDefinition {
   name: string;
   description: string;
   app: AppSection;
-  permissions: string[] | 'all';
+  permissions: string[] | 'all' | 'school';
 }
 
+const PLATFORM_ONLY: string[] = [PERMISSIONS.PLATFORM_SCHOOLS];
 const ALL = PERMISSION_CATALOG.map((permission) => permission.code);
+const SCHOOL_ALL = ALL.filter((code) => !PLATFORM_ONLY.includes(code));
 
 export const ROLE_CATALOG: RoleDefinition[] = [
   {
@@ -68,7 +78,7 @@ export const ROLE_CATALOG: RoleDefinition[] = [
     name: 'School admin',
     description: 'Full access to one school in the admin web.',
     app: 'admin',
-    permissions: 'all',
+    permissions: 'school',
   },
   {
     code: ROLES.PRINCIPAL,
@@ -79,6 +89,7 @@ export const ROLE_CATALOG: RoleDefinition[] = [
       PERMISSIONS.USERS_VIEW,
       PERMISSIONS.ROLES_VIEW,
       PERMISSIONS.SCHOOLS_VIEW,
+      PERMISSIONS.STUDENTS_VIEW,
       PERMISSIONS.NOTIFICATIONS_VIEW,
       PERMISSIONS.NOTIFICATIONS_SEND,
       PERMISSIONS.FLEET_VIEW,
@@ -94,6 +105,9 @@ export const ROLE_CATALOG: RoleDefinition[] = [
       PERMISSIONS.USERS_MANAGE,
       PERMISSIONS.ROLES_VIEW,
       PERMISSIONS.SCHOOLS_VIEW,
+      PERMISSIONS.STUDENTS_VIEW,
+      PERMISSIONS.STUDENTS_MANAGE,
+      PERMISSIONS.ADMISSIONS_MANAGE,
       PERMISSIONS.NOTIFICATIONS_VIEW,
       PERMISSIONS.NOTIFICATIONS_SEND,
     ],
@@ -103,7 +117,12 @@ export const ROLE_CATALOG: RoleDefinition[] = [
     name: 'Transport in-charge',
     description: 'Manages buses, routes and transport alerts.',
     app: 'admin',
-    permissions: [PERMISSIONS.FLEET_VIEW, PERMISSIONS.FLEET_MANAGE, PERMISSIONS.NOTIFICATIONS_VIEW],
+    permissions: [
+      PERMISSIONS.FLEET_VIEW,
+      PERMISSIONS.FLEET_MANAGE,
+      PERMISSIONS.STUDENTS_VIEW,
+      PERMISSIONS.NOTIFICATIONS_VIEW,
+    ],
   },
   {
     code: ROLES.HOD,
@@ -143,7 +162,9 @@ export const ROLE_CATALOG: RoleDefinition[] = [
 ];
 
 export function rolePermissions(role: RoleDefinition): string[] {
-  return role.permissions === 'all' ? ALL : role.permissions;
+  if (role.permissions === 'all') return ALL;
+  if (role.permissions === 'school') return SCHOOL_ALL;
+  return role.permissions;
 }
 
 export const FULL_ACCESS_ROLES: string[] = [ROLES.SUPER_ADMIN];

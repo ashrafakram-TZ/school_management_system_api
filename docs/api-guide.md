@@ -98,6 +98,7 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 | `FILE_MISSING`, `FILE_TYPE_NOT_ALLOWED`, `IMAGE_INVALID` | 400 | Upload problem |
 | `PAYLOAD_TOO_LARGE` | 413 | File over the size limit |
 | `LINK_EXPIRED` | 403 | Fetch the file again to get a fresh link |
+| `SCHOOL_REQUIRED` | 400 | Super admin only: send `X-School-Id` |
 
 ## Field conventions
 
@@ -114,6 +115,35 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 - Remove on sign-out: handled by `POST /auth/logout`. To remove a token alone: `DELETE /me/devices?fcm_token=...`.
 - Push `data` always has `notification_id`, `category` and `template`, plus the values used in the message (for example `bus`, `stop`, `minutes`). Use `category` to open the right screen.
 - The notification centre is `GET /me/notifications` (in-app copy of every message), `GET /me/notifications/unread-count`, `PATCH /me/notifications/{id}/read` and `POST /me/notifications/read-all`.
+
+## Which school
+
+Every school user belongs to one school, and the API reads it from the token. The super admin belongs to none: on `/admin/*` school pages they send `X-School-Id: <id>`, or the API answers `400 SCHOOL_REQUIRED`. The Flutter apps never send this header.
+
+## Parent app: my children
+
+`GET /mobile/parent/children` (Parent role) lists every active child linked to the signed-in parent, across schools, with this year's class:
+
+```json
+[
+  {
+    "id": 12,
+    "full_name": "Kavin Narayanan",
+    "admission_no": "TZMS-2026-0012",
+    "gender": "male",
+    "dob": "2015-04-12",
+    "photo_file_id": null,
+    "class_name": "6",
+    "section_name": "A",
+    "roll_no": 12,
+    "class_teacher": "Priya Venkatesh",
+    "relation": "father",
+    "school": { "id": 1, "name": "Tamilzorous Model School" }
+  }
+]
+```
+
+Brothers and sisters show up together because the school links them to the same parent mobile. An empty list means the school has not linked a child yet. Sign in as 9000000005 (Tamil) to try it.
 
 ## Files
 
