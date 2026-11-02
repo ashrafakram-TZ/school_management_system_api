@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { mqttConfig, TelematicsModule } from '@app/telematics';
 import { ALL_CONFIGS } from './config/configuration';
 import { validate } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
@@ -17,18 +16,31 @@ import { SchoolsModule } from './modules/schools/schools.module';
 import { SetupModule } from './modules/setup/setup.module';
 import { SmsModule } from './modules/sms/sms.module';
 import { StudentsModule } from './modules/students/students.module';
+import { FleetModule } from './modules/fleet/fleet.module';
+import { MobileModule } from './modules/mobile/mobile.module';
+import { SecurityModule } from './modules/security/security.module';
+import { StaffModule } from './modules/staff/staff.module';
+import { StudentLifecycleModule } from './modules/student-lifecycle/student-lifecycle.module';
+import { StudentImportModule } from './modules/student-import/student-import.module';
+import { StudentRecordsModule } from './modules/student-records/student-records.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, cache: true, validate, load: [...ALL_CONFIGS, mqttConfig] }),
+    ConfigModule.forRoot({ isGlobal: true, cache: true, validate, load: ALL_CONFIGS }),
     DatabaseModule,
-    TelematicsModule,
     HealthModule,
     SmsModule,
     SchoolsModule,
     SetupModule,
     StudentsModule,
+    SecurityModule,
+    StudentRecordsModule,
+    StudentLifecycleModule,
+    StudentImportModule,
+    StaffModule,
+    MobileModule,
+    FleetModule,
     AccessModule,
     UsersModule,
     AuthModule,

@@ -28,7 +28,14 @@ const TAGS: [string, string][] = [
   ['Me · Notifications', 'In-app notification centre'],
   ['Files', 'Uploads and signed download links'],
   ['Mobile · Parent', 'Parent app screens'],
-  ['Admin · Students', 'Students, class placement, guardians, roll numbers'],
+  ['Mobile · Teacher', 'Staff app screens for teachers'],
+  ['Admin · Students', 'Students, class placement, guardians, roll numbers, Excel import'],
+  ['Admin · Student records', 'Documents with verification, health and vaccinations, behaviour notes'],
+  [
+    'Admin · ID cards, TC and promotion',
+    'ID card PDFs with signed QR, transfer and withdrawal with TC, year-end promotion',
+  ],
+  ['Admin · Staff', 'Staff profiles, qualifications, documents, encrypted bank details, teacher assignments'],
   ['Admin · Admissions', 'Applications: applied, approved, rejected, enrolled'],
   ['Admin · Parents and guardians', 'Parents with their children'],
   ['Admin · School setup', 'School profile, academic years, terms, classes, sections, subjects, holidays'],
@@ -36,8 +43,7 @@ const TAGS: [string, string][] = [
   ['Admin · Users', 'Users, roles assignment and insights'],
   ['Admin · Roles', 'Roles and permissions'],
   ['Admin · Notifications', 'Outbox, delivery insights, templates and test sends'],
-  ['Fleet · Devices', 'Telematics plug-in: tracker devices'],
-  ['Fleet · Telemetry', 'Telematics plug-in: GPS positions'],
+  ['Admin · Fleet', 'Live bus status and positions, read from the Telematics service'],
   ['Health', 'Service status'],
 ];
 

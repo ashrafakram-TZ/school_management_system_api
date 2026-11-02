@@ -1,4 +1,3 @@
-import { FLEET_PERMISSION_CATALOG, FLEET_PERMISSIONS } from '@app/telematics';
 import { AppSection } from './entities/role.entity';
 
 export const PERMISSIONS = {
@@ -11,10 +10,13 @@ export const PERMISSIONS = {
   STUDENTS_VIEW: 'students.view',
   STUDENTS_MANAGE: 'students.manage',
   ADMISSIONS_MANAGE: 'admissions.manage',
+  STAFF_VIEW: 'staff.view',
+  STAFF_MANAGE: 'staff.manage',
+  STAFF_BANK: 'staff.bank',
   NOTIFICATIONS_VIEW: 'notifications.view',
   NOTIFICATIONS_SEND: 'notifications.send',
-  FLEET_VIEW: FLEET_PERMISSIONS.VIEW,
-  FLEET_MANAGE: FLEET_PERMISSIONS.MANAGE,
+  FLEET_VIEW: 'fleet.view',
+  FLEET_MANAGE: 'fleet.manage',
 } as const;
 
 export interface PermissionDefinition {
@@ -33,9 +35,13 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
   { code: PERMISSIONS.STUDENTS_VIEW, name: 'View students, parents and guardians', group: 'Students' },
   { code: PERMISSIONS.STUDENTS_MANAGE, name: 'Edit students, guardians, classes and roll numbers', group: 'Students' },
   { code: PERMISSIONS.ADMISSIONS_MANAGE, name: 'Take applications, approve, reject and enrol', group: 'Students' },
+  { code: PERMISSIONS.STAFF_VIEW, name: 'View staff, teacher profiles and assignments', group: 'Staff' },
+  { code: PERMISSIONS.STAFF_MANAGE, name: 'Add and edit staff, verify documents, assign teachers', group: 'Staff' },
+  { code: PERMISSIONS.STAFF_BANK, name: 'See and edit staff bank and PAN details', group: 'Staff' },
   { code: PERMISSIONS.NOTIFICATIONS_VIEW, name: 'View sent notifications and the SMS outbox', group: 'Communication' },
   { code: PERMISSIONS.NOTIFICATIONS_SEND, name: 'Send notifications and test messages', group: 'Communication' },
-  ...FLEET_PERMISSION_CATALOG,
+  { code: PERMISSIONS.FLEET_VIEW, name: 'See buses on the map and their live status', group: 'Fleet' },
+  { code: PERMISSIONS.FLEET_MANAGE, name: 'Manage buses, routes and stops', group: 'Fleet' },
 ];
 
 export const ROLES = {
@@ -90,6 +96,7 @@ export const ROLE_CATALOG: RoleDefinition[] = [
       PERMISSIONS.ROLES_VIEW,
       PERMISSIONS.SCHOOLS_VIEW,
       PERMISSIONS.STUDENTS_VIEW,
+      PERMISSIONS.STAFF_VIEW,
       PERMISSIONS.NOTIFICATIONS_VIEW,
       PERMISSIONS.NOTIFICATIONS_SEND,
       PERMISSIONS.FLEET_VIEW,
@@ -108,6 +115,8 @@ export const ROLE_CATALOG: RoleDefinition[] = [
       PERMISSIONS.STUDENTS_VIEW,
       PERMISSIONS.STUDENTS_MANAGE,
       PERMISSIONS.ADMISSIONS_MANAGE,
+      PERMISSIONS.STAFF_VIEW,
+      PERMISSIONS.STAFF_MANAGE,
       PERMISSIONS.NOTIFICATIONS_VIEW,
       PERMISSIONS.NOTIFICATIONS_SEND,
     ],

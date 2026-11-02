@@ -20,9 +20,7 @@
     "noFallthroughCasesInSwitch": true,
     "paths": {
       "@app/common": ["libs/common/src"],
-      "@app/common/*": ["libs/common/src/*"],
-      "@app/telematics": ["libs/telematics/src"],
-      "@app/telematics/*": ["libs/telematics/src/*"]
+      "@app/common/*": ["libs/common/src/*"]
     }
   }
 }

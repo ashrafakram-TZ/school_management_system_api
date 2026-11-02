@@ -2,6 +2,7 @@ import { IsNull } from 'typeorm';
 import { School } from '../../modules/schools/entities/school.entity';
 import { DEMO_PLATFORM_USERS, DEMO_SCHOOL, DEMO_SCHOOL_USERS } from './demo.data';
 import { seedDemoAcademics } from './demo-academics';
+import { seedDemoStaff } from './demo-staff';
 import { runSeed, seedCatalog, upsertUser } from './seed-helpers';
 
 if (process.env.NODE_ENV === 'production') {
@@ -27,4 +28,5 @@ runSeed('Demo seed', async (manager) => {
   }
 
   await seedDemoAcademics(manager, school);
+  await seedDemoStaff(manager, school);
 });

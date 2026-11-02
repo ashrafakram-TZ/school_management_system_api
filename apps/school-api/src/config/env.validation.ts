@@ -77,31 +77,21 @@ export class EnvironmentVariables {
   @Min(1)
   DB_POOL_SIZE: number = 10;
 
-  @Transform(toBoolean)
-  @IsBoolean()
-  MQTT_ENABLED: boolean = false;
-
-  @ValidateIf((env: EnvironmentVariables) => env.MQTT_ENABLED)
-  @IsString()
-  @IsNotEmpty()
-  MQTT_URL: string;
-
-  @IsOptional()
-  @IsString()
-  MQTT_USERNAME?: string;
-
-  @IsOptional()
-  @IsString()
-  MQTT_PASSWORD?: string;
-
-  @ValidateIf((env: EnvironmentVariables) => env.MQTT_ENABLED)
-  @IsString()
-  @IsNotEmpty()
-  MQTT_CLIENT_ID: string;
+  @IsUrl(
+    { require_tld: false, require_protocol: true },
+    { message: 'TELEMATICS_API_URL must be like http://localhost:3001/api/v1' },
+  )
+  TELEMATICS_API_URL: string;
 
   @IsString()
-  @IsNotEmpty()
-  MQTT_TOPIC_FILTER: string = 'telematics/+/telemetry';
+  @MinLength(32, { message: 'TELEMATICS_API_KEY must be one of the keys in the Telematics service API_KEYS' })
+  TELEMATICS_API_KEY: string;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1000)
+  @Max(30000)
+  TELEMATICS_TIMEOUT_MS: number = 5000;
 
   @IsString()
   @MinLength(32, { message: 'JWT_ACCESS_SECRET must be at least 32 characters' })
@@ -246,6 +236,16 @@ export class EnvironmentVariables {
   @IsString()
   @MinLength(32, { message: 'FILE_SIGNING_SECRET must be at least 32 characters' })
   FILE_SIGNING_SECRET: string;
+
+  @IsString()
+  @MinLength(32, { message: 'QR_SIGNING_SECRET must be at least 32 characters' })
+  QR_SIGNING_SECRET: string;
+
+  @IsString()
+  @Matches(/^[A-Za-z0-9+/]{43}=$/, {
+    message: 'DATA_ENCRYPTION_KEY must be 32 random bytes in base64 (openssl rand -base64 32)',
+  })
+  DATA_ENCRYPTION_KEY: string;
 
   @IsIn(['off'], { message: 'VIRUS_SCAN supports off in this phase; clamav comes with the infrastructure phase' })
   VIRUS_SCAN: string = 'off';

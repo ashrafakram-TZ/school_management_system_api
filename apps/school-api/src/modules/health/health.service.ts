@@ -1,21 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { MqttState, MqttStatusService } from '@app/telematics';
+import { TelematicsClient } from '../fleet/telematics.client';
 
 export interface HealthStatus {
   db: 'up' | 'down';
-  mqtt: MqttState;
+  telematics: 'up' | 'down';
 }
 
 @Injectable()
 export class HealthService {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly mqttStatus: MqttStatusService,
+    private readonly telematics: TelematicsClient,
   ) {}
 
   async check(): Promise<HealthStatus> {
-    return { db: await this.database(), mqtt: this.mqttStatus.status() };
+    const [db, telematics] = await Promise.all([this.database(), this.telematics.reachable()]);
+    return { db, telematics: telematics ? 'up' : 'down' };
   }
 
   private async database(): Promise<'up' | 'down'> {

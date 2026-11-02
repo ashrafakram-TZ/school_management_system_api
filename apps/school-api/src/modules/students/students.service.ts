@@ -299,7 +299,7 @@ export class StudentsService {
       const year = await this.currentYear(manager, schoolId);
       await this.assertClass(manager, schoolId, dto.class_id);
       const sectionId = dto.section_id ?? null;
-      const rollNo = sectionId ? (dto.roll_no ?? null) : null;
+      const rollNo = dto.roll_no ?? null;
       await this.assertPlacement(manager, schoolId, year.id, dto.class_id, sectionId, rollNo, id);
       const existing = await manager.findOneBy(StudentEnrollment, { student_id: id, academic_year_id: year.id });
       await manager.save(

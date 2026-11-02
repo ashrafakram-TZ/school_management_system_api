@@ -20,7 +20,7 @@ The Admin web and the Flutter app (Staff, Parent and Driver roles) call the same
 | `/me` | Every app: profile, language, push device, notification centre |
 | `/mobile/parent/*`, `/mobile/teacher/*`, `/mobile/driver/*` | Flutter role screens (added module by module) |
 | `/admin/*` | Admin web |
-| `/fleet/*` | Telematics plug-in |
+| `/admin/fleet/*` | Admin web: live bus status (read from the Telematics service) |
 | `/files` | Uploads and signed downloads |
 
 ## Sign-in flow
@@ -46,6 +46,7 @@ In development the OTP is always `123456` and no SMS is sent. Demo users (all sc
 | 9000000006 | Teacher and Parent (role picker) |
 | 9000000007 | Driver (Tamil) |
 | 9000000008 | Bus attendant (Tamil) |
+| 9000000401 to 9000000406 | Teachers: Tamil, English, Social Science, PE, Computer Science, Hindi |
 
 ## Response format
 
@@ -99,6 +100,9 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 | `PAYLOAD_TOO_LARGE` | 413 | File over the size limit |
 | `LINK_EXPIRED` | 403 | Fetch the file again to get a fresh link |
 | `SCHOOL_REQUIRED` | 400 | Super admin only: send `X-School-Id` |
+| `CHILD_NOT_FOUND` | 404 | Parent app: this child is not linked to the signed-in mobile |
+| `NOT_YOUR_SECTION` | 403 | Staff app: the teacher does not teach this section |
+| `QR_INVALID`, `QR_REPLACED` | 400/409 | Scanned card is not a school card, or it was replaced |
 
 ## Field conventions
 
@@ -144,6 +148,32 @@ Every school user belongs to one school, and the API reads it from the token. Th
 ```
 
 Brothers and sisters show up together because the school links them to the same parent mobile. An empty list means the school has not linked a child yet. Sign in as 9000000005 (Tamil) to try it.
+
+Child screens (all read-only, `{id}` comes from the list above; a child that is not linked to the parent returns `404 CHILD_NOT_FOUND`):
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/parent/children/{id}` | Child card: class, section, class teacher, photo, blood group, house and `counts` for the tile badges |
+| `GET /mobile/parent/children/{id}/id-card` | Digital ID card. Draw `qr_token` as a QR code; the bus attendant scans it |
+| `GET /mobile/parent/children/{id}/documents` | Documents the school shares, with `status` pending, verified or rejected |
+| `GET /mobile/parent/children/{id}/health` | Health summary, BMI and the vaccination log (`overdue` flag) |
+| `GET /mobile/parent/children/{id}/behaviour` | Behaviour notes shared with parents (appreciation, concern, incident) |
+
+If the school replaces a lost card, the old `qr_token` stops working. Fetch the ID card again instead of caching it for long.
+
+## Staff app: teachers
+
+Teacher, HOD and Principal roles. Everything is limited to the teacher's own sections this year; other sections return `403 NOT_YOUR_SECTION`.
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/teacher/classes` | My classes: class-teacher sections first, then sections I teach, with my subjects and student count |
+| `GET /mobile/teacher/sections/{id}/students` | Class roster in roll-number order |
+| `GET /mobile/teacher/students/{id}` | Student detail (read-only) |
+| `GET /mobile/teacher/students/{id}/behaviour` | Behaviour notes |
+| `POST /mobile/teacher/students/{id}/behaviour` | Add a note: `{ "category": "appreciation", "title": "Neat notebook all week", "visible_to_parent": true }` |
+
+Sign in as 9000000004 (Priya, class teacher of 6-A) to try it.
 
 ## Files
 

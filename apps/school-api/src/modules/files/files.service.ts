@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import sharp from 'sharp';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AppException, AuthUser } from '@app/common';
 import { appConfig, AppConfig, storageConfig, StorageConfig } from '../../config/configuration';
 import { ROLES } from '../access/access.catalog';
@@ -118,6 +118,35 @@ export class FilesService {
       throw AppException.forbidden('You can only delete files you uploaded');
     await this.files.softDelete(id);
     return { id };
+  }
+
+  async assertAttachable(fileId: number, schoolId: number, field = 'file_id'): Promise<FileRecord> {
+    const record = await this.files.findOneBy({ id: fileId });
+    if (!record || (record.school_id !== null && record.school_id !== schoolId)) {
+      throw AppException.validation([{ field, message: `${field} does not match an uploaded file` }]);
+    }
+    return record;
+  }
+
+  async presentMany(ids: (number | null)[]): Promise<Map<number, FileDto>> {
+    const wanted = [...new Set(ids.filter((id): id is number => typeof id === 'number'))];
+    if (!wanted.length) return new Map();
+    const records = await this.files.findBy({ id: In(wanted) });
+    return new Map(records.map((record) => [record.id, this.present(record)]));
+  }
+
+  async readImage(id: number | null): Promise<Buffer | null> {
+    if (!id) return null;
+    const record = await this.files.findOneBy({ id });
+    if (!record || !(record.mime_type in IMAGE_TYPES)) return null;
+    try {
+      const stream = await this.storage.read(record.storage_key);
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) chunks.push(Buffer.from(chunk as Buffer));
+      return await sharp(Buffer.concat(chunks)).jpeg({ quality: 85 }).toBuffer();
+    } catch {
+      return null;
+    }
   }
 
   present(record: FileRecord): FileDto {

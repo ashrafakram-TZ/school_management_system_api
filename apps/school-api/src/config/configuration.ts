@@ -80,6 +80,17 @@ export const storageConfig = registerAs('storage', () => ({
   virusScan: (process.env.VIRUS_SCAN ?? 'off') as 'off',
 }));
 
+export const telematicsConfig = registerAs('telematics', () => ({
+  url: (process.env.TELEMATICS_API_URL ?? '').replace(/\/$/, ''),
+  apiKey: process.env.TELEMATICS_API_KEY ?? '',
+  timeoutMs: Number(process.env.TELEMATICS_TIMEOUT_MS ?? 5000),
+}));
+
+export const securityConfig = registerAs('security', () => ({
+  qrSigningSecret: process.env.QR_SIGNING_SECRET ?? '',
+  dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY ?? '',
+}));
+
 export const queueConfig = registerAs('queue', () => ({
   driver: (process.env.QUEUE_DRIVER ?? 'memory') as 'memory',
   maxRetries: Number(process.env.QUEUE_MAX_RETRIES ?? 3),
@@ -94,6 +105,8 @@ export type KafkaNotifyConfig = ConfigType<typeof kafkaNotifyConfig>;
 export type PushConfig = ConfigType<typeof pushConfig>;
 export type StorageConfig = ConfigType<typeof storageConfig>;
 export type QueueConfig = ConfigType<typeof queueConfig>;
+export type SecurityConfig = ConfigType<typeof securityConfig>;
+export type TelematicsConfig = ConfigType<typeof telematicsConfig>;
 
 export const ALL_CONFIGS = [
   appConfig,
@@ -104,5 +117,7 @@ export const ALL_CONFIGS = [
   kafkaNotifyConfig,
   pushConfig,
   storageConfig,
+  securityConfig,
+  telematicsConfig,
   queueConfig,
 ];

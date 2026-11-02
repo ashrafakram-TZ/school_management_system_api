@@ -10,7 +10,7 @@ export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Database and MQTT status. Available at /api/health and /api/v1/health.' })
+  @ApiOperation({ summary: 'Database and Telematics service status. Available at /api/health and /api/v1/health.' })
   check() {
     return this.healthService.check();
   }

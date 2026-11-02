@@ -1,6 +1,6 @@
 # CLAUDE.md — School Management API
 
-NestJS 10 backend for the Tamilzorous School Management System. One API and **one PostgreSQL database** serve the Admin web (`C:\Users\DELL\Telamatics_web`) and the Flutter app (Staff, Parent and Driver roles). Bus tracking is a Telematics plug-in library that receives GPS/OBD data over MQTT.
+NestJS 10 backend for the Tamilzorous School Management System. One API and **one PostgreSQL database** serve the Admin web (`C:\Users\DELL\Telamatics_web`) and the Flutter app (Staff, Parent and Driver roles). Bus tracking is the separate Telematics service (`C:/Users/DELL/telematics-service`); this API only reads from it.
 
 Read `docs/api-guide.md` before changing anything a client sees.
 
@@ -34,11 +34,12 @@ apps/school-api/src/        the school app
   shared/                   mobile.ts (IsMobile, normalizeMobile), crypto.ts (hmac, safeEqual)
   modules/<feature>/        controller, service, dto/, entities/, *.spec.ts
 libs/common/src/            @app/common — shared by everything; imports nothing from apps
-libs/telematics/src/        @app/telematics — bus plug-in; never touches student data
 test/                       e2e specs
 ```
 
-Import shared code through the aliases `@app/common` and `@app/telematics`, never with `../../libs/...`.
+Import shared code through the alias `@app/common`, never with `../../libs/...`.
+
+Bus tracking is **not** in this repo. The Telematics service (`C:/Users/DELL/telematics-service`) has its own database and its own Swagger on port 3001. This API reads from it only through `modules/fleet/telematics.client.ts` using `TELEMATICS_API_URL` and `TELEMATICS_API_KEY`. Never add MQTT, device or telemetry tables here.
 
 ## Hard rules
 
@@ -51,11 +52,13 @@ Import shared code through the aliases `@app/common` and `@app/telematics`, neve
 - **One database.** Mobile endpoints are thin controllers over the same services and tables as admin endpoints. Never create mobile-only tables that duplicate data.
 - **Never hardcode hosts, keys or passwords.** Everything comes from `.env` and is validated in `env.validation.ts`. Add new settings to `.env.example` with a placeholder.
 - **Never commit `.env`.**
+- **Sensitive fields are encrypted.** Staff bank account and PAN go through `FieldCipher` (`DATA_ENCRYPTION_KEY`, AES-256-GCM) and are stored with only the last 4 digits in clear. Only `GET /admin/staff/:id/bank` (permission `staff.bank`) returns them. Changing the key makes existing values unreadable.
+- **ID card QR codes are signed** with `QR_SIGNING_SECRET` (`QrTokens`, `TZS1.<student>.<version>.<signature>`). Replacing a card bumps `students.card_version`, which invalidates the old QR.
 
 ## API conventions
 
 - URI versioning: every route is `/api/v1/...` by default. Add `v2` only for a breaking change and keep `v1` working (`@Controller({ path, version: '2' })` or `@Version('2')`).
-- Route families: `auth/*`, `me/*` (all apps), `admin/*` (web), `mobile/parent|teacher|driver/*` (Flutter screens), `fleet/*` (telematics), `files/*`.
+- Route families: `auth/*`, `me/*` (all apps), `admin/*` (web), `mobile/parent|teacher|driver/*` (Flutter screens), `admin/fleet/*` (read-only bus status from the Telematics service), `files/*`.
 - Success body `{ status, message, data }` is added by `ResponseInterceptor`; controllers return plain data. Set the message with `@ResponseMessage('User created')`.
 - Lists return `paginate(...)`: `{ items, total, page, limit, total_pages, has_next }`.
 - Errors: throw `AppException.notFound('Student not found', 'STUDENT_NOT_FOUND')` etc. **No try/catch in controllers.** `AllExceptionsFilter` is the only error handler and returns `{ status, error, message, errors? }`. The `error` code is what clients switch on, so keep codes stable and SCREAMING_SNAKE_CASE.
@@ -66,7 +69,7 @@ Import shared code through the aliases `@app/common` and `@app/telematics`, neve
 
 - `JwtAuthGuard` and `PermissionsGuard` are global. **Every route requires a token** unless marked `@Public()`.
 - Restrict with `@RequirePermissions(PERMISSIONS.X)` (admin) or `@RequireRoles(ROLES.PARENT)` (mobile). Read the caller with `@CurrentUser() user: AuthUser`.
-- New permissions go in `modules/access/access.catalog.ts` (`PERMISSIONS`, `PERMISSION_CATALOG`, role mapping in `ROLE_CATALOG`), then `npm run seed`. Fleet permissions live in `libs/telematics/src/telematics.permissions.ts`.
+- New permissions go in `modules/access/access.catalog.ts` (`PERMISSIONS`, `PERMISSION_CATALOG`, role mapping in `ROLE_CATALOG`), then `npm run seed`.
 - Refresh tokens rotate; reuse of an old one revokes the session. Deactivating or deleting a user revokes all sessions and push devices.
 
 ## Lists and search
@@ -113,7 +116,7 @@ Send through `NotificationsService.dispatch({ template, audience, data })`:
 
 ## Infrastructure switches
 
-No Docker is required in this phase. `STORAGE_DRIVER=local`, `QUEUE_DRIVER=memory`, `VIRUS_SCAN=off`. S3, Redis, ClamAV, TimescaleDB and EMQX come later behind the same switches; do not add hard dependencies on them.
+No Docker is required in this phase. `STORAGE_DRIVER=local`, `QUEUE_DRIVER=memory`, `VIRUS_SCAN=off`. S3, Redis and ClamAV come later behind the same switches; do not add hard dependencies on them.
 
 ## Gotchas
 

@@ -58,6 +58,12 @@ export class Student extends SchoolScopedEntity {
   @Column({ type: 'varchar', length: 150, nullable: true })
   previous_school: string | null;
 
+  @Column({ type: 'smallint', default: 1 })
+  card_version: number;
+
+  @Column({ type: 'date', nullable: true })
+  left_on: string | null;
+
   @OneToMany(() => StudentEnrollment, (enrollment) => enrollment.student)
   enrollments?: StudentEnrollment[];
 
