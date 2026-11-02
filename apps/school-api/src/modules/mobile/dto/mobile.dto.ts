@@ -21,3 +21,16 @@ export class ChildCardDto extends ParentChildDto {
   @ApiProperty({ type: RecordCountsDto, description: 'Badges for the documents, health and behaviour tiles' })
   counts: RecordCountsDto;
 }
+
+export class TodayAttendanceDto {
+  @ApiProperty({ example: '2026-11-05' })
+  date: string;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    enum: ['present', 'absent', 'late', 'half_day', 'leave'],
+    description: 'null until the class teacher marks attendance',
+  })
+  status: string | null;
+}

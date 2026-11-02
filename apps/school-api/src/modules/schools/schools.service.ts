@@ -120,6 +120,7 @@ export class SchoolsService {
       latitude: school.latitude,
       longitude: school.longitude,
       geofence_radius_m: school.geofence_radius_m,
+      staff_reporting_time: school.staff_reporting_time,
       timezone: school.timezone,
       is_active: school.is_active,
       student_count: count.students,

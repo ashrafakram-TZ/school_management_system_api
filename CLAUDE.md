@@ -7,7 +7,7 @@ Read `docs/api-guide.md` before changing anything a client sees.
 ## Commands
 
 ```bash
-npm run start:dev            # watch mode, http://localhost:3000/api/v1, Swagger at /api/docs
+npm run start:dev            # watch mode, http://localhost:3000/api/v1, Swagger at /api/docs/admin and /api/docs/mobile
 npm run build                # nest build -> dist/apps/school-api/src/main.js
 npm run lint                 # must be clean before commit
 npm run format               # prettier
@@ -63,6 +63,7 @@ Bus tracking is **not** in this repo. The Telematics service (`C:/Users/DELL/tel
 - Lists return `paginate(...)`: `{ items, total, page, limit, total_pages, has_next }`.
 - Errors: throw `AppException.notFound('Student not found', 'STUDENT_NOT_FOUND')` etc. **No try/catch in controllers.** `AllExceptionsFilter` is the only error handler and returns `{ status, error, message, errors? }`. The `error` code is what clients switch on, so keep codes stable and SCREAMING_SNAKE_CASE.
 - Validation: global pipe has `whitelist` + `forbidNonWhitelisted`; field errors come back as `errors: [{ field, message }]`.
+- **Two Swagger docs, one API.** `/api/docs/admin` (web team: `admin/*`, `integrations/*`) and `/api/docs/mobile` (Flutter team: `mobile/*`); both also show the shared `auth/*`, `me/*`, `files/*` and `health`. JSON at `/api/docs/admin-json` and `/api/docs/mobile-json`; `/api/docs` has a dropdown for both. The split is by path in `swagger.ts`, so a new route lands in the right doc only if it uses the right route family. Web and mobile are told apart by the route family, never by the version: `v1` is the API version for both.
 - Swagger on every endpoint: `@ApiTags('Admin · Students')`, `@ApiBearerAuth()`, `@ApiOperation({ summary })`, `@ApiEnvelope(Dto, { paginated })`, `@ApiErrors(...)`. Response shapes are classes in `dto/*.dto.ts` with `@ApiProperty({ example })`.
 
 ## Auth and permissions

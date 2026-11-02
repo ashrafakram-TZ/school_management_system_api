@@ -52,6 +52,9 @@ export class School extends TrackedEntity {
   @Column({ type: 'int', default: 200 })
   geofence_radius_m: number;
 
+  @Column({ type: 'varchar', length: 5, default: '08:45' })
+  staff_reporting_time: string;
+
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 }

@@ -111,6 +111,11 @@ export class SchoolProfileDto {
   @Min(50)
   @Max(2000)
   geofence_radius_m?: number;
+
+  @ApiPropertyOptional({ example: '08:45', description: 'Staff checking in more than 10 minutes after this are late' })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'staff_reporting_time must be HH:MM, for example 08:45' })
+  staff_reporting_time?: string;
 }
 
 export class CreateSchoolDto extends SchoolProfileDto {
@@ -193,6 +198,9 @@ export class SchoolDto {
 
   @ApiProperty({ example: 200 })
   geofence_radius_m: number;
+
+  @ApiProperty({ example: '08:45' })
+  staff_reporting_time: string;
 
   @ApiProperty({ example: 'Asia/Kolkata' })
   timezone: string;

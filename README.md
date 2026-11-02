@@ -28,7 +28,7 @@ All seed commands are safe to run again. Demo data lives in `apps/school-api/src
 
 In development `OTP_MODE=test`: the OTP is `OTP_TEST_CODE` (default `123456`) and no SMS is sent. Production refuses test mode.
 
-Swagger is at `/api/docs` (JSON at `/api/docs-json`) outside production.
+Swagger is split in two outside production: `/api/docs/admin` for the web and `/api/docs/mobile` for the Flutter app (JSON at `/api/docs/admin-json` and `/api/docs/mobile-json`). `/api/docs` has a dropdown for both.
 
 Times are stored in UTC and returned in `APP_TIMEZONE` (default `Asia/Kolkata`), e.g. `2026-10-29T13:00:06.000+05:30`.
 

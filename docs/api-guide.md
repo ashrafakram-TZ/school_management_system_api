@@ -1,6 +1,6 @@
 # School Management API guide
 
-For the Flutter team and anyone calling the API. Swagger has every endpoint with examples: `http://<server>:3000/api/docs` (JSON at `/api/docs-json` for code generators).
+For the Flutter team and anyone calling the API. Swagger has every endpoint with examples. Flutter team: `http://<server>:3000/api/docs/mobile` (JSON at `/api/docs/mobile-json` for code generators). Web team: `http://<server>:3000/api/docs/admin`.
 
 ## One API, one database
 
@@ -103,6 +103,18 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 | `CHILD_NOT_FOUND` | 404 | Parent app: this child is not linked to the signed-in mobile |
 | `NOT_YOUR_SECTION` | 403 | Staff app: the teacher does not teach this section |
 | `QR_INVALID`, `QR_REPLACED` | 400/409 | Scanned card is not a school card, or it was replaced |
+| `FUTURE_DATE`, `OUTSIDE_YEAR`, `NOT_A_SCHOOL_DAY`, `HOLIDAY` | 400 | Attendance date is not allowed; show the message |
+| `ATTENDANCE_INCOMPLETE`, `DUPLICATE_STUDENT`, `STUDENT_NOT_IN_SECTION` | 400 | Send every student of the section exactly once |
+| `OUTSIDE_SCHOOL` | 400 | Check-in: the phone is outside the school radius; the message says how far |
+| `GEOFENCE_NOT_SET` | 400 | Check-in: the school has no location yet; ask the office |
+| `ALREADY_CHECKED_IN` | 409 | Already checked in today |
+| `NOT_CHECKED_IN` | 400 | Check-out before check-in |
+| `LEAVE_OVERLAP` | 409 | Another request already covers these days |
+| `LEAVE_BALANCE_LOW`, `NO_WORKING_DAYS` | 400 | Not enough balance, or the dates are all holidays and Sundays |
+| `LEAVE_NOT_PENDING` | 409 | The request was already decided or cancelled |
+| `NOT_CLASS_TEACHER`, `NOT_APPROVER`, `OWN_LEAVE` | 403 | This person cannot decide this leave |
+| `TEACHER_CLASH`, `ROOM_CLASH` | 409 | Timetable: the teacher or room is busy in that period |
+| `BELL_INVALID`, `PERIOD_IN_USE` | 400/409 | Bell schedule overlaps, or removes a period the timetable uses |
 
 ## Field conventions
 
@@ -161,6 +173,18 @@ Child screens (all read-only, `{id}` comes from the list above; a child that is 
 
 If the school replaces a lost card, the old `qr_token` stops working. Fetch the ID card again instead of caching it for long.
 
+### Attendance and leave (parent)
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/parent/children/{id}/attendance/today` | Home badge: `{ "date": "2026-11-02", "status": "absent" }`; `status` is `null` until the class teacher marks |
+| `GET /mobile/parent/children/{id}/attendance?month=2026-11` | Calendar: `days[]` with `date` and `status` (present, absent, late, half_day, leave, holiday), plus `summary.percent` |
+| `GET /mobile/parent/children/{id}/leaves` | Leave requests, newest first, with `status` pending, approved, rejected or cancelled |
+| `POST /mobile/parent/children/{id}/leaves` | `{ "from_date": "2026-11-10", "to_date": "2026-11-11", "reason": "Fever", "file_id": null }`. Up to 7 days back, 30 days long |
+| `POST /mobile/parent/children/{id}/leaves/{leaveId}/cancel` | Cancel while it is still pending |
+
+When the class teacher marks the child absent for today's morning attendance, the parent gets a `STUDENT_ABSENT` push (once per day) and an in-app notification. The parent is told again when a leave request is approved or rejected (`LEAVE_STATUS`).
+
 ## Staff app: teachers
 
 Teacher, HOD and Principal roles. Everything is limited to the teacher's own sections this year; other sections return `403 NOT_YOUR_SECTION`.
@@ -174,6 +198,30 @@ Teacher, HOD and Principal roles. Everything is limited to the teacher's own sec
 | `POST /mobile/teacher/students/{id}/behaviour` | Add a note: `{ "category": "appreciation", "title": "Neat notebook all week", "visible_to_parent": true }` |
 
 Sign in as 9000000004 (Priya, class teacher of 6-A) to try it.
+
+### Attendance, check-in, leave and timetable (staff)
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/teacher/check-in` | Today's card: `check_in_at`, `check_out_at`, `status` (present, late, not_checked_in), distance from school |
+| `POST /mobile/teacher/check-in` | `{ "lat": 13.0879, "lng": 80.2102, "accuracy_m": 12 }`. Refused with `OUTSIDE_SCHOOL` outside the school radius. Late is after the school reporting time plus 10 minutes |
+| `POST /mobile/teacher/check-out` | Same body |
+| `GET /mobile/teacher/my-attendance?month=2026-11` | My month |
+| `GET /mobile/teacher/sections/{id}/attendance?date=2026-11-02&period=0` | Roster with saved or default statuses. Period 0 is the morning attendance; students on approved leave default to `leave` |
+| `PUT /mobile/teacher/sections/{id}/attendance` | `{ "date": "2026-11-02", "period": 0, "items": [{ "student_id": 12, "status": "absent", "remarks": null }] }`. Send every student once. Saving today's period 0 alerts parents of absent students |
+| `GET /mobile/teacher/timetable` | My week: `periods` (bell schedule) and `slots` with `day_of_week` 1 Monday … 6 Saturday |
+| `GET /mobile/teacher/leave-balances` | Per leave type: allowed, used, pending, balance |
+| `GET /mobile/teacher/leaves` | My requests |
+| `POST /mobile/teacher/leaves` | `{ "leave_type_id": 1, "from_date": "2026-11-20", "to_date": "2026-11-21", "half_day": false, "reason": "Family function" }`. Goes to the HOD of my department, then the principal |
+| `POST /mobile/teacher/leaves/{id}/cancel` | Cancel while waiting |
+| `GET /mobile/teacher/leave-approvals` | HOD / principal: staff requests waiting for me |
+| `POST /mobile/teacher/leave-approvals/{id}/decision` | `{ "status": "approved", "note": null }` |
+| `GET /mobile/teacher/student-leaves?status=pending` | Class teacher: parent leave requests for my sections (paginated) |
+| `POST /mobile/teacher/student-leaves/{id}/decision` | `{ "status": "rejected", "note": "Please bring the medical note" }` |
+
+Staff leave status moves `pending_hod` → `pending_principal` → `approved` (or `rejected` at any step). With no HOD in the department it starts at `pending_principal`.
+
+Biometric machines push punches to `POST /integrations/biometric/punches` with header `X-Device-Key` (`BIOMETRIC_WEBHOOK_KEY`); the first punch of the day is the check-in and the last is the check-out.
 
 ## Files
 

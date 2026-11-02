@@ -237,6 +237,14 @@ export class EnvironmentVariables {
   @MinLength(32, { message: 'FILE_SIGNING_SECRET must be at least 32 characters' })
   FILE_SIGNING_SECRET: string;
 
+  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => Boolean(env.BIOMETRIC_WEBHOOK_KEY))
+  @IsString()
+  @MinLength(32, {
+    message: 'BIOMETRIC_WEBHOOK_KEY must be at least 32 characters, or left empty to switch the webhook off',
+  })
+  BIOMETRIC_WEBHOOK_KEY?: string;
+
   @IsString()
   @MinLength(32, { message: 'QR_SIGNING_SECRET must be at least 32 characters' })
   QR_SIGNING_SECRET: string;

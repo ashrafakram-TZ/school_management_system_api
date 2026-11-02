@@ -5,6 +5,7 @@ import { ALL_CONFIGS } from './config/configuration';
 import { validate } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { AccessModule } from './modules/access/access.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './modules/auth/guards/permissions.guard';
@@ -20,6 +21,9 @@ import { FleetModule } from './modules/fleet/fleet.module';
 import { MobileModule } from './modules/mobile/mobile.module';
 import { SecurityModule } from './modules/security/security.module';
 import { StaffModule } from './modules/staff/staff.module';
+import { StaffAttendanceModule } from './modules/staff-attendance/staff-attendance.module';
+import { StaffLeaveModule } from './modules/staff-leave/staff-leave.module';
+import { TimetableModule } from './modules/timetable/timetable.module';
 import { StudentLifecycleModule } from './modules/student-lifecycle/student-lifecycle.module';
 import { StudentImportModule } from './modules/student-import/student-import.module';
 import { StudentRecordsModule } from './modules/student-records/student-records.module';
@@ -39,6 +43,10 @@ import { UsersModule } from './modules/users/users.module';
     StudentLifecycleModule,
     StudentImportModule,
     StaffModule,
+    AttendanceModule,
+    StaffAttendanceModule,
+    StaffLeaveModule,
+    TimetableModule,
     MobileModule,
     FleetModule,
     AccessModule,

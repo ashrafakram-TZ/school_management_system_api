@@ -38,7 +38,10 @@ async function bootstrap(): Promise<void> {
   for (const host of reachableHosts(appCfg.host)) {
     logger.log(`HTTP listening on http://${host}:${appCfg.port}/api/v1`);
   }
-  if (appCfg.env !== 'production') logger.log(`Swagger on http://localhost:${appCfg.port}/api/docs`);
+  if (appCfg.env !== 'production')
+    logger.log(
+      `Swagger: admin http://localhost:${appCfg.port}/api/docs/admin · mobile http://localhost:${appCfg.port}/api/docs/mobile`,
+    );
 }
 
 void bootstrap();

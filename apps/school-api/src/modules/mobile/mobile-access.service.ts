@@ -53,6 +53,15 @@ export class MobileAccessService {
     };
   }
 
+  async classTeacherSections(schoolId: number, userId: number): Promise<number[]> {
+    const rows: { id: number }[] = await this.dataSource.query(
+      `SELECT sec.id FROM sections sec JOIN academic_years y ON y.id = sec.academic_year_id AND y.is_current
+       WHERE sec.school_id = $1 AND sec.class_teacher_user_id = $2 AND sec.deleted_at IS NULL`,
+      [schoolId, userId],
+    );
+    return rows.map((row) => Number(row.id));
+  }
+
   teacherSchool(user: AuthUser): number {
     if (!user.school_id) throw AppException.forbidden('Your account is not linked to a school', 'NO_SCHOOL');
     return user.school_id;

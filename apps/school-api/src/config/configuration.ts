@@ -87,6 +87,7 @@ export const telematicsConfig = registerAs('telematics', () => ({
 }));
 
 export const securityConfig = registerAs('security', () => ({
+  biometricWebhookKey: process.env.BIOMETRIC_WEBHOOK_KEY ?? '',
   qrSigningSecret: process.env.QR_SIGNING_SECRET ?? '',
   dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY ?? '',
 }));

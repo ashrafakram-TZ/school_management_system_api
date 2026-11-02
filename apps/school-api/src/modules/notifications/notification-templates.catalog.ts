@@ -16,6 +16,8 @@ export const TEMPLATES = {
   DIARY_POSTED: 'DIARY_POSTED',
   MEETING_REMINDER: 'MEETING_REMINDER',
   CHAT_MESSAGE: 'CHAT_MESSAGE',
+  STAFF_LEAVE_STATUS: 'STAFF_LEAVE_STATUS',
+  LEAVE_APPROVAL_NEEDED: 'LEAVE_APPROVAL_NEEDED',
 } as const;
 
 interface TemplateText {
@@ -109,6 +111,44 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
       ta: {
         title: 'விடுப்பு கோரிக்கை {{status}}',
         body: '{{student}}-க்கான {{from}} முதல் {{to}} வரையிலான விடுப்பு கோரிக்கை {{status}}.',
+        sms_body: null,
+      },
+    },
+  },
+  {
+    code: TEMPLATES.STAFF_LEAVE_STATUS,
+    category: 'attendance',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: 'Your leave is {{status}}',
+        body: 'Your {{type}} from {{from}} to {{to}} ({{days}} days) is {{status}}.{{note}}',
+        sms_body: null,
+      },
+      ta: {
+        title: 'உங்கள் விடுப்பு {{status}}',
+        body: '{{from}} முதல் {{to}} வரையிலான உங்கள் {{type}} ({{days}} நாட்கள்) {{status}}.{{note}}',
+        sms_body: null,
+      },
+    },
+  },
+  {
+    code: TEMPLATES.LEAVE_APPROVAL_NEEDED,
+    category: 'attendance',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: 'Leave waiting for you',
+        body: '{{name}} applied for {{type}} from {{from}} to {{to}} ({{days}} days).',
+        sms_body: null,
+      },
+      ta: {
+        title: 'உங்கள் ஒப்புதலுக்கு விடுப்பு',
+        body: '{{name}} {{from}} முதல் {{to}} வரை {{type}} ({{days}} நாட்கள்) கோரியுள்ளார்.',
         sms_body: null,
       },
     },
