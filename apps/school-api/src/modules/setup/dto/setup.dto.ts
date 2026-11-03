@@ -16,7 +16,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { ListQueryDto } from '@app/common';
+import { ListQueryDto, toBoolean } from '@app/common';
 import { IsDateOnly } from '../../../shared/dates';
 import { HOLIDAY_TYPES, HolidayType } from '../entities/holiday.entity';
 import { SUBJECT_TYPES, SubjectType } from '../entities/subject.entity';
@@ -24,7 +24,6 @@ import { SUBJECT_TYPES, SubjectType } from '../entities/subject.entity';
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const emptyToNull = ({ value }: { value: unknown }) =>
   typeof value === 'string' && value.trim() === '' ? null : typeof value === 'string' ? value.trim() : value;
-const toBoolean = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
 
 export class AcademicYearInputDto {
   @ApiProperty({ example: '2026-27' })

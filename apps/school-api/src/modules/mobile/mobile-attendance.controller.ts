@@ -39,7 +39,11 @@ import {
   StaffLeaveInputDto,
 } from '../staff-leave/dto/staff-leave.dto';
 import { StaffLeaveService } from '../staff-leave/staff-leave.service';
+import { MySubstitutionDto } from '../substitutes/dto/substitute.dto';
+import { SubstitutesService } from '../substitutes/substitutes.service';
 import { TeacherTimetableDto } from '../timetable/dto/timetable.dto';
+import { ParentTransportDto } from '../transport/dto/transport.dto';
+import { RoutesService } from '../transport/routes.service';
 import { TimetableService } from '../timetable/timetable.service';
 import { TodayAttendanceDto } from './dto/mobile.dto';
 import { MobileAccessService } from './mobile-access.service';
@@ -54,8 +58,18 @@ export class MobileParentAttendanceController {
     private readonly access: MobileAccessService,
     private readonly attendance: AttendanceService,
     private readonly leaves: StudentLeaveService,
+    private readonly transport: RoutesService,
     @Inject(appConfig.KEY) private readonly app: AppConfig,
   ) {}
+
+  @Get('transport')
+  @ApiOperation({
+    summary: 'Bus route, stop with pickup and drop time, bus, driver and attendant; null when the child walks',
+  })
+  @ApiEnvelope(ParentTransportDto)
+  async transportCard(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.transport.forParent(await this.access.childSchool(user.id, id), id);
+  }
 
   @Get('attendance')
   @ApiOperation({ summary: 'Attendance calendar for a month: status of each day and the attendance %' })
@@ -120,6 +134,7 @@ export class MobileTeacherAttendanceController {
     private readonly staffAttendance: StaffAttendanceService,
     private readonly staffLeaves: StaffLeaveService,
     private readonly timetable: TimetableService,
+    private readonly substitutes: SubstitutesService,
   ) {}
 
   @Get('check-in')
@@ -185,6 +200,13 @@ export class MobileTeacherAttendanceController {
   @ApiEnvelope(TeacherTimetableDto)
   myTimetable(@CurrentUser() user: AuthUser) {
     return this.timetable.teacherGrid(this.access.teacherSchool(user), user.id);
+  }
+
+  @Get('substitutions')
+  @ApiOperation({ summary: 'Classes I take in place of absent teachers, today and the next 7 days' })
+  @ApiEnvelope(MySubstitutionDto, { isArray: true })
+  mySubstitutions(@CurrentUser() user: AuthUser) {
+    return this.substitutes.mine(user);
   }
 
   @Get('leave-balances')

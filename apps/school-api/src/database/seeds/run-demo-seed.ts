@@ -3,6 +3,7 @@ import { School } from '../../modules/schools/entities/school.entity';
 import { DEMO_PLATFORM_USERS, DEMO_SCHOOL, DEMO_SCHOOL_USERS } from './demo.data';
 import { seedDemoAcademics } from './demo-academics';
 import { seedDemoDay4 } from './demo-day4';
+import { seedDemoDay5 } from './demo-day5';
 import { seedDemoStaff } from './demo-staff';
 import { runSeed, seedCatalog, upsertUser } from './seed-helpers';
 
@@ -31,4 +32,5 @@ runSeed('Demo seed', async (manager) => {
   await seedDemoAcademics(manager, school);
   await seedDemoStaff(manager, school);
   await seedDemoDay4(manager, school);
+  await seedDemoDay5(manager, school);
 });

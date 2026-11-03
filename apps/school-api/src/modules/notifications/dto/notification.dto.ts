@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, Min } from 'class-validator';
-import { ListQueryDto, PaginationDto } from '@app/common';
+import { ListQueryDto, PaginationDto, toBoolean } from '@app/common';
 import {
   CATEGORIES,
   Channel,
@@ -11,8 +11,6 @@ import {
   NotificationStatus,
 } from '../entities/notification.entity';
 import { SMS_MODES, SmsMode } from '../entities/notification-template.entity';
-
-const toBoolean = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
 
 export class MyNotificationsQueryDto extends PaginationDto {
   @ApiPropertyOptional({ description: 'true: only unread' })

@@ -59,6 +59,9 @@ export class Admission extends SchoolScopedEntity {
   @Column({ type: 'varchar', length: 150, nullable: true })
   previous_school: string | null;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  identification_marks: string | null;
+
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 

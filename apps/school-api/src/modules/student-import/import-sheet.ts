@@ -30,6 +30,7 @@ export const IMPORT_COLUMNS: ImportColumn[] = [
   { key: 'city', header: 'City', width: 12, note: '' },
   { key: 'pincode', header: 'Pincode', width: 9, note: '6 digits' },
   { key: 'previous_school', header: 'Previous school', width: 20, note: '' },
+  { key: 'identification_marks', header: 'Identification marks', width: 24, note: 'Birth marks, moles or scars' },
   { key: 'father_name', header: 'Father name', width: 18, note: 'At least one parent or guardian with a mobile' },
   { key: 'father_mobile', header: 'Father mobile', width: 13, note: '10 digits' },
   { key: 'mother_name', header: 'Mother name', width: 18, note: '' },

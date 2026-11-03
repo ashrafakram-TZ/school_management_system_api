@@ -64,6 +64,7 @@ describe('PDFs', () => {
       admission_no: 'TZMS-2025-0001',
       gender: 'male',
       dob: '2014-02-02',
+      identification_marks: 'A mole on the left cheek',
       guardian_name: null,
       admission_date: '2025-06-02',
       class_name: '6',

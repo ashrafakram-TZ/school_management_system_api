@@ -326,6 +326,7 @@ export class StudentImportService {
         city: values.city || null,
         pincode: values.pincode || null,
         previous_school: values.previous_school || null,
+        identification_marks: values.identification_marks || null,
         class_id: schoolClass?.id ?? 0,
         section_id: section?.id ?? null,
         roll_no: rollText ? Number(rollText) : null,

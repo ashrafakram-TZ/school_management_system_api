@@ -13,7 +13,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { ListQueryDto } from '@app/common';
+import { ListQueryDto, toBoolean } from '@app/common';
 import { ROLE_CATALOG } from '../../access/access.catalog';
 import { APP_SECTIONS, AppSection } from '../../access/entities/role.entity';
 import { IsMobile } from '../../../shared/mobile';
@@ -85,7 +85,7 @@ export class UserQueryDto extends ListQueryDto {
 
   @ApiPropertyOptional({ description: 'true: never signed in' })
   @IsOptional()
-  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @Transform(toBoolean)
   @IsIn([true, false])
   never_signed_in?: boolean;
 

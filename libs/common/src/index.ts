@@ -2,6 +2,7 @@ export * from './auth/auth.decorators';
 export * from './context/request-context';
 export * from './decorators/response-message.decorator';
 export * from './dto/pagination.dto';
+export * from './dto/transforms';
 export * from './entities/base.entity';
 export * from './entities/created-by.subscriber';
 export * from './exceptions/app.exception';

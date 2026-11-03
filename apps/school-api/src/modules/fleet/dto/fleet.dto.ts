@@ -5,7 +5,7 @@ import { PaginationDto } from '@app/common';
 export const VEHICLE_STATES = ['moving', 'idle', 'parked', 'offline', 'no_data'] as const;
 export type VehicleState = (typeof VEHICLE_STATES)[number];
 
-export const VEHICLE_ALERTS = ['low_fuel', 'low_battery', 'harsh_driving'] as const;
+export const VEHICLE_ALERTS = ['low_fuel', 'low_battery', 'harsh_driving', 'engine_fault', 'engine_overheat'] as const;
 export type VehicleAlert = (typeof VEHICLE_ALERTS)[number];
 
 export class HarshCountsDto {
@@ -37,6 +37,38 @@ export class PositionDto {
 
   @ApiProperty({ example: '2026-11-02T08:15:00.000+05:30' })
   recorded_at: string;
+}
+
+export class ObdSnapshotDto {
+  @ApiProperty({ example: 1450, nullable: true, type: Number })
+  rpm: number | null;
+
+  @ApiProperty({ example: 34, nullable: true, type: Number })
+  speed: number | null;
+
+  @ApiProperty({ example: 89.5, nullable: true, type: Number, description: 'Coolant °C; above 105 is overheating' })
+  coolant_c: number | null;
+
+  @ApiProperty({ example: 42, nullable: true, type: Number })
+  engine_load_pct: number | null;
+
+  @ApiProperty({ example: 18, nullable: true, type: Number })
+  throttle_pct: number | null;
+
+  @ApiProperty({ example: 63.4, nullable: true, type: Number })
+  fuel_pct: number | null;
+
+  @ApiProperty({ example: 13.9, nullable: true, type: Number })
+  battery_v: number | null;
+
+  @ApiProperty({ example: 48213.7, nullable: true, type: Number })
+  odometer_km: number | null;
+
+  @ApiProperty({ example: ['P0301'], type: [String], description: 'Active engine fault codes' })
+  dtc: string[];
+
+  @ApiProperty({ example: '2026-11-03T10:49:43.000+05:30' })
+  at: string;
 }
 
 export class VehicleStatusDto {
@@ -81,6 +113,9 @@ export class VehicleStatusDto {
 
   @ApiProperty({ type: PositionDto, nullable: true })
   position: PositionDto | null;
+
+  @ApiProperty({ type: ObdSnapshotDto, nullable: true, description: 'Latest engine reading from the OBD port' })
+  obd: ObdSnapshotDto | null;
 }
 
 export class FleetLiveDto {
@@ -104,6 +139,9 @@ export class FleetLiveDto {
 
   @ApiProperty({ example: 1 })
   low_fuel: number;
+
+  @ApiProperty({ example: 0, description: 'Buses reporting an engine fault code' })
+  engine_faults: number;
 
   @ApiProperty({ type: [VehicleStatusDto] })
   vehicles: VehicleStatusDto[];

@@ -15,7 +15,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { ListQueryDto } from '@app/common';
+import { ListQueryDto, toBoolean } from '@app/common';
 import { MOBILE_PATTERN, normalizeMobile } from '../../../shared/mobile';
 import { SCHOOL_BOARDS, SchoolBoard } from '../entities/school.entity';
 
@@ -141,7 +141,7 @@ export class CreateSchoolDto extends SchoolProfileDto {
 export class UpdateSchoolDto extends PartialType(OmitType(CreateSchoolDto, ['admin_name', 'admin_mobile'] as const)) {
   @ApiPropertyOptional({ description: 'Switch a school off without deleting its data' })
   @IsOptional()
-  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @Transform(toBoolean)
   @IsIn([true, false])
   is_active?: boolean;
 }
@@ -151,7 +151,7 @@ export class UpdateCurrentSchoolDto extends PartialType(SchoolProfileDto) {}
 export class SchoolQueryDto extends ListQueryDto {
   @ApiPropertyOptional({ description: 'Filter by active flag' })
   @IsOptional()
-  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @Transform(toBoolean)
   @IsIn([true, false])
   is_active?: boolean;
 }

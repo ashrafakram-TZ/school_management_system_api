@@ -18,6 +18,9 @@ export const TEMPLATES = {
   CHAT_MESSAGE: 'CHAT_MESSAGE',
   STAFF_LEAVE_STATUS: 'STAFF_LEAVE_STATUS',
   LEAVE_APPROVAL_NEEDED: 'LEAVE_APPROVAL_NEEDED',
+  SUBSTITUTE_ASSIGNED: 'SUBSTITUTE_ASSIGNED',
+  PAYSLIP_READY: 'PAYSLIP_READY',
+  FLEET_DOCUMENT_EXPIRY: 'FLEET_DOCUMENT_EXPIRY',
 } as const;
 
 interface TemplateText {
@@ -314,6 +317,63 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
     text: {
       en: { title: '{{sender}}', body: '{{preview}}', sms_body: null },
       ta: { title: '{{sender}}', body: '{{preview}}', sms_body: null },
+    },
+  },
+  {
+    code: TEMPLATES.SUBSTITUTE_ASSIGNED,
+    category: 'attendance',
+    push: true,
+    sms: 'fallback',
+    critical: false,
+    text: {
+      en: {
+        title: 'Substitute class: {{section}}, period {{period}}',
+        body: 'Please take {{subject}} for {{section}} in period {{period}} ({{time}}) on {{date}}, in place of {{absent}}.{{room}}',
+        sms_body: 'Substitute: {{section}} period {{period}} ({{time}}) on {{date}} for {{absent}}. - {{school}}',
+      },
+      ta: {
+        title: 'மாற்று வகுப்பு: {{section}}, பாடவேளை {{period}}',
+        body: '{{date}} அன்று {{period}} ஆம் பாடவேளையில் ({{time}}) {{absent}} அவர்களுக்குப் பதிலாக {{section}} வகுப்பில் {{subject}} எடுக்கவும்.{{room}}',
+        sms_body: 'மாற்று வகுப்பு: {{section}} பாடவேளை {{period}} ({{time}}) {{date}}, {{absent}} பதிலாக. - {{school}}',
+      },
+    },
+  },
+  {
+    code: TEMPLATES.PAYSLIP_READY,
+    category: 'account',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: 'Payslip for {{month}} is ready',
+        body: 'Your payslip for {{month}} is ready. Net pay {{net}}. Open the app to download it.',
+        sms_body: null,
+      },
+      ta: {
+        title: '{{month}} சம்பளச் சீட்டு தயார்',
+        body: '{{month}} மாதத்திற்கான உங்கள் சம்பளச் சீட்டு தயார். நிகர ஊதியம் {{net}}. பதிவிறக்க ஆப்பைத் திறக்கவும்.',
+        sms_body: null,
+      },
+    },
+  },
+  {
+    code: TEMPLATES.FLEET_DOCUMENT_EXPIRY,
+    category: 'transport',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: '{{document}} ends on {{date}}: {{subject}}',
+        body: '{{document}} for {{subject}} is valid till {{date}} ({{days}} days left). Renew it to keep the bus on the road.',
+        sms_body: null,
+      },
+      ta: {
+        title: '{{document}} {{date}} அன்று முடிகிறது: {{subject}}',
+        body: '{{subject}} க்கான {{document}} {{date}} வரை மட்டுமே செல்லும் ({{days}} நாட்கள் உள்ளன). பேருந்து இயங்க புதுப்பிக்கவும்.',
+        sms_body: null,
+      },
     },
   },
 ];

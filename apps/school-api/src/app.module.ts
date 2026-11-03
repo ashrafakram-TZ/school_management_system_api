@@ -24,6 +24,9 @@ import { StaffModule } from './modules/staff/staff.module';
 import { StaffAttendanceModule } from './modules/staff-attendance/staff-attendance.module';
 import { StaffLeaveModule } from './modules/staff-leave/staff-leave.module';
 import { TimetableModule } from './modules/timetable/timetable.module';
+import { SubstitutesModule } from './modules/substitutes/substitutes.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
+import { TransportModule } from './modules/transport/transport.module';
 import { StudentLifecycleModule } from './modules/student-lifecycle/student-lifecycle.module';
 import { StudentImportModule } from './modules/student-import/student-import.module';
 import { StudentRecordsModule } from './modules/student-records/student-records.module';
@@ -47,6 +50,9 @@ import { UsersModule } from './modules/users/users.module';
     StaffAttendanceModule,
     StaffLeaveModule,
     TimetableModule,
+    SubstitutesModule,
+    PayrollModule,
+    TransportModule,
     MobileModule,
     FleetModule,
     AccessModule,

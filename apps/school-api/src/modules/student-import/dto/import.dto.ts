@@ -1,3 +1,4 @@
+import { toBoolean } from '@app/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsIn, IsOptional } from 'class-validator';
@@ -14,8 +15,6 @@ export const IMPORT_UPLOAD_SCHEMA = {
     send_invites: { type: 'boolean', default: false, description: 'Send Parent app invites after import' },
   },
 };
-
-const toBoolean = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
 
 export class ImportOptionsDto {
   @ApiPropertyOptional({ enum: IMPORT_MODES, default: 'validate' })

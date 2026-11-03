@@ -84,6 +84,12 @@ export class Staff extends SchoolScopedEntity {
   @Column({ type: 'varchar', length: 4, nullable: true })
   pan_last4: string | null;
 
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  licence_no: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  licence_expiry: string | null;
+
   @OneToMany(() => StaffQualification, (item) => item.staff)
   qualifications?: StaffQualification[];
 

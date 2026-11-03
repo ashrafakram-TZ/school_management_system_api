@@ -222,6 +222,7 @@ export class StudentLifecycleService {
       admission_no: student.admission_no,
       gender: student.gender,
       dob: student.dob,
+      identification_marks: student.identification_marks,
       guardian_name: guardian?.name ?? null,
       admission_date: student.admission_date,
       class_name: tc.class_name,

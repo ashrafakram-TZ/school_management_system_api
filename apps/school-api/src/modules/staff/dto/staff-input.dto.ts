@@ -18,7 +18,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { ListQueryDto } from '@app/common';
+import { ListQueryDto, toBoolean } from '@app/common';
 import { IsDateOnly } from '../../../shared/dates';
 import { IsMobile, MOBILE_PATTERN, normalizeMobile } from '../../../shared/mobile';
 import { ROLES } from '../../access/access.catalog';
@@ -41,7 +41,6 @@ const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? val
 const trimToNull = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() || null : value);
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.replace(/\s/g, '').toUpperCase() : value;
-const toBoolean = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
 const notNull = (_object: unknown, value: unknown) => value !== null;
 
 export class QualificationInputDto {

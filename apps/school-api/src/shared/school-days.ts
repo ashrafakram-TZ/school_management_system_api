@@ -36,7 +36,8 @@ export async function holidaySet(
 ): Promise<Set<string>> {
   const rows: { date: string; end_date: string | null }[] = await manager.query(
     `SELECT to_char(date, 'YYYY-MM-DD') AS date, to_char(end_date, 'YYYY-MM-DD') AS end_date FROM holidays
-     WHERE school_id = $1 AND deleted_at IS NULL AND date <= $3 AND COALESCE(end_date, date) >= $2`,
+     WHERE school_id = $1 AND deleted_at IS NULL AND type <> 'event'
+       AND date <= $3 AND COALESCE(end_date, date) >= $2`,
     [schoolId, from, to],
   );
   const set = new Set<string>();

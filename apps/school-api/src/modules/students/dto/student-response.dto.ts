@@ -166,6 +166,9 @@ export class StudentDetailDto extends StudentListItemDto {
   @ApiProperty({ nullable: true, type: String })
   previous_school: string | null;
 
+  @ApiProperty({ nullable: true, type: String, example: 'A mole on the left cheek' })
+  identification_marks: string | null;
+
   @ApiProperty({ type: [StudentGuardianDetailDto] })
   guardian_details: StudentGuardianDetailDto[];
 
@@ -344,6 +347,9 @@ export class AdmissionDto {
 
   @ApiProperty({ nullable: true, type: String })
   previous_school: string | null;
+
+  @ApiProperty({ nullable: true, type: String, example: 'A mole on the left cheek' })
+  identification_marks: string | null;
 
   @ApiProperty({ nullable: true, type: String })
   notes: string | null;

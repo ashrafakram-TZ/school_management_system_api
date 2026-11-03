@@ -94,6 +94,7 @@ export class StudentsService {
         city: dto.city ?? null,
         pincode: dto.pincode ?? null,
         previous_school: dto.previous_school ?? null,
+        identification_marks: dto.identification_marks ?? null,
       }),
     );
     await manager.insert(StudentEnrollment, {
@@ -248,6 +249,7 @@ export class StudentsService {
       city: student.city,
       pincode: student.pincode,
       previous_school: student.previous_school,
+      identification_marks: student.identification_marks,
       guardian_details: links
         .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
         .map((link) => ({

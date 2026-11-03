@@ -18,7 +18,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { ListQueryDto } from '@app/common';
+import { ListQueryDto, toBoolean } from '@app/common';
 import { IsDateOnly } from '../../../shared/dates';
 import { IsMobile, MOBILE_PATTERN, normalizeMobile } from '../../../shared/mobile';
 import { LANGUAGES, Language } from '../../users/entities/user.entity';
@@ -29,7 +29,6 @@ import { RELATIONS, Relation } from '../entities/student-guardian.entity';
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const emptyToNull = ({ value }: { value: unknown }) =>
   typeof value === 'string' && value.trim() === '' ? null : typeof value === 'string' ? value.trim() : value;
-const toBoolean = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
 const notNull = (_object: unknown, value: unknown) => value !== null;
 
 export class GuardianInputDto {
@@ -179,6 +178,19 @@ export class StudentProfileDto {
   @IsString()
   @MaxLength(150)
   previous_school?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'A mole on the left cheek; a scar on the right thumb',
+    nullable: true,
+    type: String,
+    description: 'Personal marks of identification, printed on the TC',
+  })
+  @IsOptional()
+  @Transform(emptyToNull)
+  @ValidateIf(notNull)
+  @IsString()
+  @MaxLength(255)
+  identification_marks?: string | null;
 
   @ApiPropertyOptional({ example: 31, nullable: true, type: Number })
   @IsOptional()
@@ -417,6 +429,19 @@ export class AdmissionInputDto {
   @IsString()
   @MaxLength(150)
   previous_school?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'A mole on the left cheek; a scar on the right thumb',
+    nullable: true,
+    type: String,
+    description: 'Personal marks of identification, printed on the TC',
+  })
+  @IsOptional()
+  @Transform(emptyToNull)
+  @ValidateIf(notNull)
+  @IsString()
+  @MaxLength(255)
+  identification_marks?: string | null;
 
   @ApiPropertyOptional({ nullable: true, type: String })
   @IsOptional()

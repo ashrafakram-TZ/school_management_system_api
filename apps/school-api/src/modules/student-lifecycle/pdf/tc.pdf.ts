@@ -13,6 +13,7 @@ export interface TcData {
   admission_no: string;
   gender: string;
   dob: string;
+  identification_marks: string | null;
   guardian_name: string | null;
   admission_date: string;
   class_name: string | null;
@@ -77,6 +78,7 @@ export async function tcPdf(tc: TcData): Promise<Buffer> {
     ['Admission number', tc.admission_no],
     ['Gender', tc.gender.charAt(0).toUpperCase() + tc.gender.slice(1)],
     ['Date of birth', displayDate(tc.dob)],
+    ['Personal marks of identification', tc.identification_marks ?? '—'],
     ['Parent or guardian', tc.guardian_name ?? '—'],
     ['Date of admission', displayDate(tc.admission_date)],
     ['Class last studied', [tc.class_name, tc.section_name].filter(Boolean).join(' - ') || '—'],
