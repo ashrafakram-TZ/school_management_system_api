@@ -22,6 +22,13 @@ export class SchoolSummaryDto {
 
   @ApiProperty({ example: 'TZMS' })
   code: string;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Signed link to the school logo; null when the school has none',
+  })
+  logo_url: string | null;
 }
 
 export class UserListItemDto {

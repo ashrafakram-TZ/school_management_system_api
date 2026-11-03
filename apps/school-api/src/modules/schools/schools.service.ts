@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { AppException, AuthUser, listQuery, Paginated } from '@app/common';
 import { ROLES } from '../access/access.catalog';
+import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
 import { CreateSchoolDto, SchoolDto, SchoolQueryDto, UpdateCurrentSchoolDto, UpdateSchoolDto } from './dto/school.dto';
@@ -14,6 +15,7 @@ export class SchoolsService {
     @InjectRepository(School) private readonly schools: Repository<School>,
     private readonly users: UsersService,
     private readonly notifications: NotificationsService,
+    private readonly files: FilesService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -47,6 +49,7 @@ export class SchoolsService {
     }
 
     const { admin_name: adminName, admin_mobile: adminMobile, ...profile } = dto;
+    await this.assertLogo(0, profile.logo_file_id);
     const school = await this.schools.save(this.schools.create({ ...profile, timezone: 'Asia/Kolkata' }));
     if (adminName && adminMobile) {
       const admin = await this.users.create(
@@ -71,12 +74,14 @@ export class SchoolsService {
     ) {
       throw AppException.conflict(`School code ${dto.code} is already used`, 'SCHOOL_CODE_TAKEN');
     }
+    await this.assertLogo(id, dto.logo_file_id);
     await this.schools.update(id, dto);
     return this.get(id);
   }
 
   async updateCurrent(id: number, dto: UpdateCurrentSchoolDto): Promise<SchoolDto> {
     await this.find(id);
+    await this.assertLogo(id, dto.logo_file_id);
     await this.schools.update(id, dto);
     return this.get(id);
   }
@@ -85,6 +90,14 @@ export class SchoolsService {
     const school = await this.schools.findOneBy({ id });
     if (!school) throw AppException.notFound('School not found', 'SCHOOL_NOT_FOUND');
     return school;
+  }
+
+  private async assertLogo(schoolId: number, fileId: number | null | undefined): Promise<void> {
+    if (!fileId) return;
+    const file = await this.files.assertAttachable(fileId, schoolId, 'logo_file_id');
+    if (!file.mime_type.startsWith('image/')) {
+      throw AppException.validation([{ field: 'logo_file_id', message: 'The logo must be an image (PNG or JPG)' }]);
+    }
   }
 
   private async counts(ids: number[]): Promise<Map<number, { students: number; users: number }>> {
@@ -122,6 +135,8 @@ export class SchoolsService {
       geofence_radius_m: school.geofence_radius_m,
       staff_reporting_time: school.staff_reporting_time,
       timezone: school.timezone,
+      logo_file_id: school.logo_file_id,
+      logo_url: this.files.linkFor(school.logo_file_id),
       is_active: school.is_active,
       student_count: count.students,
       user_count: count.users,

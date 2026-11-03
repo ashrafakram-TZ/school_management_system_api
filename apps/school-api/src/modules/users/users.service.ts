@@ -6,6 +6,7 @@ import { ROLES } from '../access/access.catalog';
 import { AccessService } from '../access/access.service';
 import { APP_SECTIONS, AppSection } from '../access/entities/role.entity';
 import { UserSession } from '../auth/entities/user-session.entity';
+import { FilesService } from '../files/files.service';
 import { CreateUserDto, UpdateMeDto, UpdateUserDto, UserQueryDto } from './dto/user-input.dto';
 import { UserInsightsDto, UserListItemDto, UserProfileDto } from './dto/user-response.dto';
 import { UserDevice } from './entities/user-device.entity';
@@ -18,6 +19,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly access: AccessService,
+    private readonly files: FilesService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -28,7 +30,7 @@ export class UsersService {
   async profile(userId: number): Promise<UserProfileDto> {
     const access = await this.access.load(userId);
     if (!access) throw AppException.notFound('User not found');
-    return toUserProfile(access);
+    return toUserProfile(access, this.files.linkFor(access.user.school?.logo_file_id ?? null));
   }
 
   async updateMe(userId: number, dto: UpdateMeDto): Promise<UserProfileDto> {

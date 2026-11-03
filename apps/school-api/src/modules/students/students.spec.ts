@@ -89,6 +89,24 @@ describe('permissions', () => {
     );
     expect(rolePermissions(role('AO'))).not.toContain(PERMISSIONS.SCHOOLS_MANAGE);
   });
+
+  it('keeps salaries, user roles and setup away from the AO', () => {
+    const ao = rolePermissions(role('AO'));
+    for (const code of [
+      PERMISSIONS.PAYROLL_VIEW,
+      PERMISSIONS.USERS_MANAGE,
+      PERMISSIONS.STAFF_BANK,
+      PERMISSIONS.TIMETABLE_MANAGE,
+    ])
+      expect(ao).not.toContain(code);
+  });
+
+  it('lets only the AO (and the platform owner) assign substitutes', () => {
+    const holders = ROLE_CATALOG.filter((item) => rolePermissions(item).includes(PERMISSIONS.SUBSTITUTES_MANAGE)).map(
+      (item) => item.code,
+    );
+    expect(holders.sort()).toEqual(['AO', 'SUPER_ADMIN']);
+  });
 });
 
 describe('admission workflow', () => {

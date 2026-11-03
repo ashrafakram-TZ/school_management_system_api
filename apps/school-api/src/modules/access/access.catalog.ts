@@ -96,8 +96,9 @@ export interface RoleDefinition {
 }
 
 const PLATFORM_ONLY: string[] = [PERMISSIONS.PLATFORM_SCHOOLS];
+const AO_ONLY: string[] = [PERMISSIONS.SUBSTITUTES_MANAGE];
 const ALL = PERMISSION_CATALOG.map((permission) => permission.code);
-const SCHOOL_ALL = ALL.filter((code) => !PLATFORM_ONLY.includes(code));
+const SCHOOL_ALL = ALL.filter((code) => !PLATFORM_ONLY.includes(code) && !AO_ONLY.includes(code));
 
 export const ROLE_CATALOG: RoleDefinition[] = [
   {
@@ -110,7 +111,8 @@ export const ROLE_CATALOG: RoleDefinition[] = [
   {
     code: ROLES.ADMIN,
     name: 'School admin',
-    description: 'Full access to one school in the admin web.',
+    description:
+      'Full access to one school in the admin web, except assigning proxy teachers (the AO or super admin does that).',
     app: 'admin',
     permissions: 'school',
   },
@@ -128,7 +130,6 @@ export const ROLE_CATALOG: RoleDefinition[] = [
       PERMISSIONS.ATTENDANCE_VIEW,
       PERMISSIONS.LEAVE_APPROVE,
       PERMISSIONS.TIMETABLE_VIEW,
-      PERMISSIONS.SUBSTITUTES_MANAGE,
       PERMISSIONS.PAYROLL_VIEW,
       PERMISSIONS.FEES_VIEW,
       PERMISSIONS.EXAMS_VIEW,
@@ -140,12 +141,10 @@ export const ROLE_CATALOG: RoleDefinition[] = [
   {
     code: ROLES.AO,
     name: 'Administrative officer',
-    description: 'Runs the school office: admissions, records, announcements, leave processing.',
+    description:
+      'Runs the school office in the admin web: admissions, student and staff records, attendance, fee collection, announcements and the only school role that assigns proxy teachers. No salaries, user roles or school setup changes.',
     app: 'admin',
     permissions: [
-      PERMISSIONS.USERS_VIEW,
-      PERMISSIONS.USERS_MANAGE,
-      PERMISSIONS.ROLES_VIEW,
       PERMISSIONS.SCHOOLS_VIEW,
       PERMISSIONS.STUDENTS_VIEW,
       PERMISSIONS.STUDENTS_MANAGE,
@@ -155,16 +154,13 @@ export const ROLE_CATALOG: RoleDefinition[] = [
       PERMISSIONS.ATTENDANCE_VIEW,
       PERMISSIONS.ATTENDANCE_MANAGE,
       PERMISSIONS.TIMETABLE_VIEW,
-      PERMISSIONS.TIMETABLE_MANAGE,
       PERMISSIONS.SUBSTITUTES_MANAGE,
-      PERMISSIONS.PAYROLL_VIEW,
-      PERMISSIONS.PAYROLL_MANAGE,
       PERMISSIONS.FEES_VIEW,
       PERMISSIONS.FEES_MANAGE,
       PERMISSIONS.EXAMS_VIEW,
-      PERMISSIONS.EXAMS_MANAGE,
       PERMISSIONS.NOTIFICATIONS_VIEW,
       PERMISSIONS.NOTIFICATIONS_SEND,
+      PERMISSIONS.FLEET_VIEW,
     ],
   },
   {

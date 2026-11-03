@@ -21,11 +21,13 @@ export function toUserListItem(access: UserAccess): UserListItemDto {
   };
 }
 
-export function toUserProfile(access: UserAccess): UserProfileDto {
+export function toUserProfile(access: UserAccess, logoUrl: string | null = null): UserProfileDto {
   const { user } = access;
   return {
     ...toUserListItem(access),
-    school: user.school ? { id: user.school.id, name: user.school.name, code: user.school.code } : null,
+    school: user.school
+      ? { id: user.school.id, name: user.school.name, code: user.school.code, logo_url: logoUrl }
+      : null,
     apps: access.apps,
     mobile_apps: MOBILE_SECTIONS.filter((section) => access.apps.includes(section)) as MobileSection[],
     sections: access.apps.map((app) => ({

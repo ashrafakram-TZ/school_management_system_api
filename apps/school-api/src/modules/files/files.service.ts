@@ -167,6 +167,10 @@ export class FilesService {
     };
   }
 
+  linkFor(id: number | null): string | null {
+    return id ? this.url(id, this.signer.sign(id, 'original')) : null;
+  }
+
   private url(id: number, query: SignedQuery): string {
     const params = new URLSearchParams({
       variant: query.variant,

@@ -187,6 +187,23 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 
 Every school user belongs to one school, and the API reads it from the token. The super admin belongs to none: on `/admin/*` school pages they send `X-School-Id: <id>`, or the API answers `400 SCHOOL_REQUIRED`. The Flutter apps never send this header.
 
+### School logo
+
+`GET /me` returns `school: { id, name, code, logo_url }`. Show `logo_url` on the app header and splash; it is `null` when the school has no logo. The link is signed and expires after `FILE_URL_TTL_SECONDS` (1 hour), so take it from a fresh `/me` instead of caching it.
+
+The admin web sets it in School setup → School profile: `POST /files` (purpose `school_logo`, PNG/JPG/WEBP), then `PATCH /admin/school { "logo_file_id": <id> }`, or `null` to remove it. A file that is not an image returns `400 VALIDATION_FAILED` on `logo_file_id`. ID cards, fee receipts, payslips and TCs print the same logo.
+
+### Admin web roles
+
+| Role | Sees in the admin web |
+|---|---|
+| School admin | Everything in the school, except assigning substitutes |
+| Principal | Every module read-only, staff leave approval, announcements |
+| AO (Administrative officer) | Admissions, students, staff records, attendance, fee collection, exams (view), timetable (view), announcements, bus status; **the only role that assigns substitutes**. No payroll, users and roles, staff bank details or school setup changes |
+| Transport in-charge | Buses, routes and stops, students (view) |
+
+Substitutes: `POST /admin/substitutes`, `POST /admin/substitutes/auto` and `DELETE /admin/substitutes/{id}` need `substitutes.manage` (AO only; others get `403 FORBIDDEN` and can still view the board). A substitute is set for one date and one period, only for a teacher who is on approved leave or absent that day, and only from the teachers who are free in that period (`GET /admin/substitutes/free`); anyone else returns `409 SUBSTITUTE_BUSY`.
+
 ## Parent app: my children
 
 `GET /mobile/parent/children` (Parent role) lists every active child linked to the signed-in parent, across schools, with this year's class:

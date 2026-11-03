@@ -332,9 +332,9 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
     critical: false,
     text: {
       en: {
-        title: 'Substitute class: {{section}}, period {{period}}',
+        title: 'Proxy class: {{section}}, period {{period}}',
         body: 'Please take {{subject}} for {{section}} in period {{period}} ({{time}}) on {{date}}, in place of {{absent}}.{{room}}',
-        sms_body: 'Substitute: {{section}} period {{period}} ({{time}}) on {{date}} for {{absent}}. - {{school}}',
+        sms_body: 'Proxy: {{section}} period {{period}} ({{time}}) on {{date}} for {{absent}}. - {{school}}',
       },
       ta: {
         title: 'மாற்று வகுப்பு: {{section}}, பாடவேளை {{period}}',

@@ -116,6 +116,19 @@ export class SchoolProfileDto {
   @IsOptional()
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'staff_reporting_time must be HH:MM, for example 08:45' })
   staff_reporting_time?: string;
+
+  @ApiPropertyOptional({
+    example: 41,
+    nullable: true,
+    type: Number,
+    description:
+      'Uploaded image (POST /files, purpose school_logo). Shown in the apps, ID cards, receipts and payslips. null removes it.',
+  })
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
+  @IsInt()
+  @Min(1)
+  logo_file_id?: number | null;
 }
 
 export class CreateSchoolDto extends SchoolProfileDto {
@@ -204,6 +217,16 @@ export class SchoolDto {
 
   @ApiProperty({ example: 'Asia/Kolkata' })
   timezone: string;
+
+  @ApiProperty({ nullable: true, type: Number, example: 41 })
+  logo_file_id: number | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Signed link to the logo, valid for FILE_URL_TTL_SECONDS',
+  })
+  logo_url: string | null;
 
   @ApiProperty()
   is_active: boolean;
