@@ -21,6 +21,7 @@ export const TEMPLATES = {
   SUBSTITUTE_ASSIGNED: 'SUBSTITUTE_ASSIGNED',
   PAYSLIP_READY: 'PAYSLIP_READY',
   FLEET_DOCUMENT_EXPIRY: 'FLEET_DOCUMENT_EXPIRY',
+  TRIP_NOT_BOARDED: 'TRIP_NOT_BOARDED',
 } as const;
 
 interface TemplateText {
@@ -372,6 +373,25 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
       ta: {
         title: '{{document}} {{date}} அன்று முடிகிறது: {{subject}}',
         body: '{{subject}} க்கான {{document}} {{date}} வரை மட்டுமே செல்லும் ({{days}} நாட்கள் உள்ளன). பேருந்து இயங்க புதுப்பிக்கவும்.',
+        sms_body: null,
+      },
+    },
+  },
+  {
+    code: TEMPLATES.TRIP_NOT_BOARDED,
+    category: 'transport',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: '{{count}} from {{section}} did not board the bus',
+        body: 'Not on {{bus}} this morning: {{names}}. Please check before the first period.',
+        sms_body: null,
+      },
+      ta: {
+        title: '{{section}} வகுப்பில் {{count}} பேர் பேருந்தில் ஏறவில்லை',
+        body: 'இன்று காலை {{bus}} பேருந்தில் இல்லை: {{names}}. முதல் பாடவேளைக்கு முன் சரிபார்க்கவும்.',
         sms_body: null,
       },
     },

@@ -27,6 +27,7 @@ import { TimetableModule } from './modules/timetable/timetable.module';
 import { SubstitutesModule } from './modules/substitutes/substitutes.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { TransportModule } from './modules/transport/transport.module';
+import { TrackingModule } from './modules/tracking/tracking.module';
 import { StudentLifecycleModule } from './modules/student-lifecycle/student-lifecycle.module';
 import { StudentImportModule } from './modules/student-import/student-import.module';
 import { StudentRecordsModule } from './modules/student-records/student-records.module';
@@ -53,6 +54,7 @@ import { UsersModule } from './modules/users/users.module';
     SubstitutesModule,
     PayrollModule,
     TransportModule,
+    TrackingModule,
     MobileModule,
     FleetModule,
     AccessModule,

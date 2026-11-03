@@ -94,6 +94,12 @@ export class EnvironmentVariables {
   @Max(30000)
   TELEMATICS_TIMEOUT_MS: number = 5000;
 
+  @IsOptional()
+  @MinLength(32, {
+    message: 'TELEMATICS_WEBHOOK_SECRET must match TRIP_WEBHOOK_SECRET in the Telematics service (32+ characters)',
+  })
+  TELEMATICS_WEBHOOK_SECRET?: string;
+
   @IsString()
   @MinLength(32, { message: 'JWT_ACCESS_SECRET must be at least 32 characters' })
   JWT_ACCESS_SECRET: string;

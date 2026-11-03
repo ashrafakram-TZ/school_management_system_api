@@ -43,6 +43,10 @@ const TAGS: [string, string][] = [
   ['Admin · Substitutes', 'Teachers away today, free teachers per period, assign and notify substitutes'],
   ['Admin · Payroll', 'Salary structures, monthly payroll runs, payslip PDFs'],
   ['Admin · Transport', 'Buses, trackers, drivers, document expiry, routes and stops, students by stop'],
+  [
+    'Admin · Trips',
+    'Live bus trips: start and end, stop timeline with ETA, riders and not-boarded list. Live updates over the /live socket.',
+  ],
   ['Mobile · Driver', 'Driver and attendant app: my bus, route, stops and students'],
   ['Integrations', 'Machine-to-machine webhooks such as biometric punches (X-Device-Key)'],
   ['Admin · Admissions', 'Applications: applied, approved, rejected, enrolled'],
@@ -77,6 +81,11 @@ One Flutter app for Parent, Staff (teacher) and Driver. One sign-in per person; 
 
 4. **Switch role** later from the profile menu ("Switch to Parent / Staff"): no new OTP and no new token. The same \`access_token\` calls \`/mobile/parent/*\`, \`/mobile/teacher/*\` or \`/mobile/driver/*\`; each endpoint checks the role. Remember the last choice on the phone and call \`GET /me\` on app start to rebuild the chooser.
 5. **Keep signed in** with \`POST /auth/refresh\` (store the new refresh token every time); **sign out** with \`POST /auth/logout\`.
+
+### Live bus (parent and driver)
+
+- **Parent**: \`GET /mobile/parent/children/{id}/bus\` gives status, headline, ETA to the child's stop and the bus position. **Driver**: \`GET /mobile/driver/trips/today\`, start with \`POST /mobile/driver/trips\`, phone GPS fallback \`POST /mobile/driver/trips/{id}/positions\`.
+- **Live updates**: socket.io namespace \`/live\` with \`{ auth: { token } }\`; \`emit('trip.subscribe', { trip_id })\`, then receive \`trip.position\` and \`trip.event\`. A parent can follow only their own child's trip.
 
 Sample number with both roles in the demo school: **9791543989** (Teacher of 6 - A Computer Science, and Parent of Aadhavan Senthil). It gets \`"mobile_apps": ["staff", "parent"]\`.`;
 

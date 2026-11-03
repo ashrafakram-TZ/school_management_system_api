@@ -93,6 +93,7 @@ export const telematicsConfig = registerAs('telematics', () => ({
   url: (process.env.TELEMATICS_API_URL ?? '').replace(/\/$/, ''),
   apiKey: process.env.TELEMATICS_API_KEY ?? '',
   timeoutMs: Number(process.env.TELEMATICS_TIMEOUT_MS ?? 5000),
+  webhookSecret: process.env.TELEMATICS_WEBHOOK_SECRET ?? '',
 }));
 
 export const securityConfig = registerAs('security', () => ({

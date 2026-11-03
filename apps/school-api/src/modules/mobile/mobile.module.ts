@@ -8,6 +8,7 @@ import { StudentRecordsModule } from '../student-records/student-records.module'
 import { StudentsModule } from '../students/students.module';
 import { SubstitutesModule } from '../substitutes/substitutes.module';
 import { TimetableModule } from '../timetable/timetable.module';
+import { TrackingModule } from '../tracking/tracking.module';
 import { TransportModule } from '../transport/transport.module';
 import { MobileAccessService } from './mobile-access.service';
 import { MobileParentAttendanceController, MobileTeacherAttendanceController } from './mobile-attendance.controller';
@@ -25,6 +26,7 @@ import { MobileParentChildController, MobileTeacherController } from './mobile.c
     TimetableModule,
     SubstitutesModule,
     TransportModule,
+    TrackingModule,
   ],
   controllers: [
     MobileParentChildController,

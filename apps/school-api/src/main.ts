@@ -19,7 +19,7 @@ function reachableHosts(host: string): string[] {
 }
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const logger = new Logger('Bootstrap');
   const config = app.get(ConfigService);
   const appCfg = config.getOrThrow<AppConfig>('app');

@@ -42,6 +42,8 @@ import { StaffLeaveService } from '../staff-leave/staff-leave.service';
 import { MySubstitutionDto } from '../substitutes/dto/substitute.dto';
 import { SubstitutesService } from '../substitutes/substitutes.service';
 import { TeacherTimetableDto } from '../timetable/dto/timetable.dto';
+import { ChildBusDto } from '../tracking/dto/tracking.dto';
+import { TripsService } from '../tracking/trips.service';
 import { ParentTransportDto } from '../transport/dto/transport.dto';
 import { RoutesService } from '../transport/routes.service';
 import { TimetableService } from '../timetable/timetable.service';
@@ -59,8 +61,21 @@ export class MobileParentAttendanceController {
     private readonly attendance: AttendanceService,
     private readonly leaves: StudentLeaveService,
     private readonly transport: RoutesService,
+    private readonly tracking: TripsService,
     @Inject(appConfig.KEY) private readonly app: AppConfig,
   ) {}
+
+  @Get('bus')
+  @ApiOperation({
+    summary:
+      'Live bus for this child: status, ready-to-show headline, ETA to the child’s stop, position (or last known)',
+    description:
+      'status: no_trip, on_the_way, approaching, at_stop, passed, trip_ended. When trip is not null, follow it live: connect to the /live socket with { auth: { token } } and emit trip.subscribe { trip_id }; you get trip.position and trip.event. null when the child does not use the bus.',
+  })
+  @ApiEnvelope(ChildBusDto)
+  async bus(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.tracking.childBus(await this.access.childSchool(user.id, id), id);
+  }
 
   @Get('transport')
   @ApiOperation({
