@@ -13,12 +13,18 @@ import {
   AbsentTeacherDto,
   AssignSubstituteDto,
   AutoAssignResultDto,
+  CombineClassDto,
+  CombinedIntoDto,
+  CombineOptionsDto,
+  CombineTargetDto,
+  StudentGroupCountDto,
   FreeTeacherDto,
   FreeTeachersDto,
   MySubstitutionDto,
   SubstituteBoardDto,
 } from './dto/substitute.dto';
-import { Substitution } from './entities/substitution.entity';
+import { MergeGroup, SubstitutionMerge } from './entities/substitution-merge.entity';
+import { CoverKind, Substitution } from './entities/substitution.entity';
 
 interface SlotRow {
   id: number;
@@ -33,6 +39,29 @@ interface SlotRow {
   teacher_user_id: number | null;
   room: string | null;
 }
+
+interface Cover {
+  substitution_id: number;
+  kind: CoverKind;
+  substitute: { id: number; name: string } | null;
+  note: string | null;
+  combined_into: CombinedIntoDto[];
+}
+
+const NO_COVER = { substitution_id: null, kind: null, substitute: null, note: null, combined_into: [] };
+
+export function groupSize(counts: StudentGroupCountDto | undefined, group: MergeGroup): number {
+  if (!counts) return 0;
+  if (group === 'boys') return counts.boys;
+  if (group === 'girls') return counts.girls;
+  return counts.total;
+}
+
+const GROUP_WORDS: Record<MergeGroup, { en: string; ta: string }> = {
+  all: { en: 'students', ta: 'மாணவ மாணவிகள்' },
+  boys: { en: 'boys', ta: 'மாணவர்கள்' },
+  girls: { en: 'girls', ta: 'மாணவிகள்' },
+};
 
 interface CandidateRow {
   user_id: number;
@@ -85,6 +114,7 @@ export class SubstitutesService {
 
   constructor(
     @InjectRepository(Substitution) private readonly substitutions: Repository<Substitution>,
+    @InjectRepository(SubstitutionMerge) private readonly merges: Repository<SubstitutionMerge>,
     private readonly timetable: TimetableService,
     private readonly notifications: NotificationsService,
     private readonly dataSource: DataSource,
@@ -108,36 +138,27 @@ export class SubstitutesService {
     if (!empty.working_day) return empty;
     const absent = await this.absentTeachers(schoolId, date);
     if (!absent.size) return empty;
-    const [periods, slots, covers] = await Promise.all([
+    const [periods, slots] = await Promise.all([
       this.timetable.periods(schoolId),
       this.dataSource.query(
         `${SLOT_SELECT} WHERE t.school_id = $1 AND t.day_of_week = $2 AND t.teacher_user_id = ANY($3) ORDER BY t.period_no`,
         [schoolId, day, [...absent.keys()]],
       ) as Promise<SlotRow[]>,
-      this.dataSource.query(
-        `SELECT sb.id, sb.slot_id, sb.note, u.id AS user_id, u.name FROM substitutions sb
-         JOIN users u ON u.id = sb.substitute_user_id WHERE sb.school_id = $1 AND sb.date = $2`,
-        [schoolId, date],
-      ) as Promise<{ id: number; slot_id: number; note: string | null; user_id: number; name: string }[]>,
     ]);
-    const coverBySlot = new Map(covers.map((row) => [Number(row.slot_id), row]));
+    const coverBySlot = await this.covers(
+      schoolId,
+      date,
+      slots.map((slot) => Number(slot.id)),
+    );
     const teachers = [...absent.entries()].map(([userId, info]) => ({
       teacher: { id: userId, name: info.name },
       reason: info.reason,
       periods: slots
         .filter((slot) => Number(slot.teacher_user_id) === userId)
-        .map((slot) => {
-          const cover = coverBySlot.get(Number(slot.id));
-          return {
-            ...this.presentSlot(slot, periods),
-            substitution_id: cover ? Number(cover.id) : null,
-            substitute: cover ? { id: Number(cover.user_id), name: cover.name } : null,
-            note: cover?.note ?? null,
-          };
-        }),
+        .map((slot) => ({ ...this.presentSlot(slot, periods), ...(coverBySlot.get(Number(slot.id)) ?? NO_COVER) })),
     }));
     const all = teachers.flatMap((teacher) => teacher.periods);
-    const covered = all.filter((period) => period.substitute).length;
+    const covered = all.filter((period) => period.substitution_id).length;
     return {
       ...empty,
       absent_teachers: teachers.length,
@@ -184,11 +205,7 @@ export class SubstitutesService {
         slot.id,
       ],
     );
-    const cover = await this.substitutions.findOneBy({ slot_id: slot.id, date });
-    const coverUser = cover
-      ? ((await this.dataSource.query(`SELECT id, name FROM users WHERE id = $1`, [cover.substitute_user_id]))[0] as
-          { id: number; name: string } | undefined)
-      : undefined;
+    const cover = (await this.covers(schoolId, date, [slot.id])).get(slot.id) ?? NO_COVER;
     const teachers: FreeTeacherDto[] = rankCandidates(
       rows.map((row) => ({
         teacher: { id: Number(row.user_id), name: row.name },
@@ -208,12 +225,7 @@ export class SubstitutesService {
       knows_section: row.knows_section,
     }));
     return {
-      period: {
-        ...this.presentSlot(slot, periods),
-        substitution_id: cover?.id ?? null,
-        substitute: coverUser ? { id: Number(coverUser.id), name: coverUser.name } : null,
-        note: cover?.note ?? null,
-      },
+      period: { ...this.presentSlot(slot, periods), ...cover },
       teachers,
     };
   }
@@ -250,7 +262,7 @@ export class SubstitutesService {
     let assigned = 0;
     let left = 0;
     for (const teacher of before.teachers) {
-      for (const period of teacher.periods.filter((item) => !item.substitute)) {
+      for (const period of teacher.periods.filter((item) => !item.substitution_id)) {
         const options = await this.free(schoolId, date, period.slot_id);
         const best = options.teachers[0];
         if (!best) {
@@ -264,6 +276,131 @@ export class SubstitutesService {
       }
     }
     return { assigned, left_uncovered: left, board: await this.board(schoolId, date) };
+  }
+
+  async combineOptions(schoolId: number, date: string, slotId: number): Promise<CombineOptionsDto> {
+    const slot = await this.slot(schoolId, slotId);
+    const [periods, absent, candidates] = await Promise.all([
+      this.timetable.periods(schoolId),
+      this.absentTeachers(schoolId, date),
+      this.dataSource.query(
+        `${SLOT_SELECT} WHERE t.school_id = $1 AND t.day_of_week = $2 AND t.period_no = $3 AND t.section_id <> $4
+           AND sec.class_id = (SELECT class_id FROM sections WHERE id = $4) ORDER BY sec.name`,
+        [schoolId, weekday(date), slot.period_no, slot.section_id],
+      ) as Promise<SlotRow[]>,
+    ]);
+    const candidateIds = candidates.map((row) => Number(row.id));
+    const [candidateCovers, ownCover, teacherNames, joining, counts] = await Promise.all([
+      this.covers(schoolId, date, candidateIds),
+      this.covers(schoolId, date, [slot.id]),
+      this.userNames(candidates.map((row) => Number(row.teacher_user_id)).filter(Boolean)),
+      this.joiningStudents(date, candidateIds),
+      this.groupCounts([slot.section_id, ...candidates.map((row) => Number(row.section_id))]),
+    ]);
+    const targets: CombineTargetDto[] = candidates.flatMap((row) => {
+      const own = row.teacher_user_id ? Number(row.teacher_user_id) : null;
+      const cover = candidateCovers.get(Number(row.id));
+      const teacher =
+        own && !absent.has(own) && teacherNames.has(own)
+          ? { id: own, name: teacherNames.get(own)! }
+          : cover?.kind === 'proxy'
+            ? cover.substitute
+            : null;
+      if (!teacher) return [];
+      const presented = this.presentSlot(row, periods);
+      return [
+        {
+          slot_id: presented.slot_id,
+          section: presented.section,
+          subject: presented.subject,
+          teacher,
+          room: row.room,
+          students: groupSize(counts.get(Number(row.section_id)), 'all'),
+          joining: joining.get(Number(row.id)) ?? 0,
+        },
+      ];
+    });
+    return {
+      period: { ...this.presentSlot(slot, periods), ...(ownCover.get(slot.id) ?? NO_COVER) },
+      students: counts.get(Number(slot.section_id)) ?? { total: 0, boys: 0, girls: 0 },
+      targets,
+    };
+  }
+
+  async combine(schoolId: number, dto: CombineClassDto, actor: AuthUser): Promise<SubstituteBoardDto> {
+    await this.assertBookable(schoolId, dto.date);
+    const slot = await this.slot(schoolId, dto.slot_id);
+    if (slot.day_of_week !== weekday(dto.date)) {
+      throw AppException.validation([{ field: 'slot_id', message: 'This period is not on that day of the week' }]);
+    }
+    const absent = await this.absentTeachers(schoolId, dto.date);
+    if (!slot.teacher_user_id || !absent.has(Number(slot.teacher_user_id))) {
+      throw AppException.conflict(
+        'The teacher of this period is not on leave or absent that day',
+        'TEACHER_NOT_ABSENT',
+      );
+    }
+    if (dto.mode === 'split' && dto.boys_section_id === dto.girls_section_id) {
+      throw AppException.validation([
+        {
+          field: 'girls_section_id',
+          message: 'Choose a different section for the girls, or send the whole class to one section',
+        },
+      ]);
+    }
+    const plan: { section_id: number; group: MergeGroup }[] =
+      dto.mode === 'whole'
+        ? [{ section_id: dto.section_id!, group: 'all' }]
+        : [
+            { section_id: dto.boys_section_id!, group: 'boys' },
+            { section_id: dto.girls_section_id!, group: 'girls' },
+          ];
+    const options = await this.combineOptions(schoolId, dto.date, slot.id);
+    const chosen = plan.map((item) => {
+      const target = options.targets.find((row) => row.section.id === item.section_id);
+      if (!target) {
+        throw AppException.conflict(
+          'That section has no class with a teacher in this period. Choose one from the list.',
+          'SECTION_NOT_AVAILABLE',
+        );
+      }
+      return { ...item, target };
+    });
+    await this.dataSource.transaction(async (manager) => {
+      const mergeRepo = manager.getRepository(SubstitutionMerge);
+      const saved = await this.upsert(manager.getRepository(Substitution), schoolId, slot, dto.date, {
+        kind: 'combine',
+        substitute_user_id: null,
+        note: dto.note ?? null,
+        assigned_by: actor.id,
+      });
+      await mergeRepo.delete({ substitution_id: saved.id });
+      await mergeRepo.save(
+        chosen.map((item) =>
+          mergeRepo.create({
+            substitution_id: saved.id,
+            school_id: schoolId,
+            target_section_id: item.target.section.id,
+            target_slot_id: item.target.slot_id,
+            target_teacher_user_id: item.target.teacher.id,
+            student_group: item.group,
+          }),
+        ),
+      );
+    });
+    const absentName = absent.get(Number(slot.teacher_user_id))!.name;
+    for (const item of chosen) {
+      await this.notifyCombined(
+        schoolId,
+        slot,
+        dto.date,
+        item.target,
+        item.group,
+        groupSize(options.students, item.group),
+        absentName,
+      );
+    }
+    return this.board(schoolId, dto.date);
   }
 
   async cancel(schoolId: number, id: number): Promise<SubstituteBoardDto> {
@@ -339,9 +476,25 @@ export class SubstitutesService {
     note: string | null,
     actorId: number,
   ): Promise<void> {
-    const existing = await this.substitutions.findOneBy({ slot_id: slot.id, date });
-    await this.substitutions.save(
-      this.substitutions.merge(existing ?? this.substitutions.create(), {
+    const saved = await this.upsert(this.substitutions, schoolId, slot, date, {
+      kind: 'proxy',
+      substitute_user_id: substituteId,
+      note,
+      assigned_by: actorId,
+    });
+    await this.merges.delete({ substitution_id: saved.id });
+  }
+
+  private async upsert(
+    repo: Repository<Substitution>,
+    schoolId: number,
+    slot: SlotRow,
+    date: string,
+    fields: Pick<Substitution, 'kind' | 'substitute_user_id' | 'note' | 'assigned_by'>,
+  ): Promise<Substitution> {
+    const existing = await repo.findOneBy({ slot_id: slot.id, date });
+    return repo.save(
+      repo.merge(existing ?? repo.create(), {
         school_id: schoolId,
         date,
         slot_id: Number(slot.id),
@@ -349,11 +502,146 @@ export class SubstitutesService {
         period_no: Number(slot.period_no),
         subject_id: Number(slot.subject_id),
         absent_user_id: slot.teacher_user_id ? Number(slot.teacher_user_id) : null,
-        substitute_user_id: substituteId,
-        note,
-        assigned_by: actorId,
+        ...fields,
       }),
     );
+  }
+
+  private async covers(schoolId: number, date: string, slotIds: number[]): Promise<Map<number, Cover>> {
+    const result = new Map<number, Cover>();
+    if (!slotIds.length) return result;
+    const rows: {
+      id: number;
+      slot_id: number;
+      section_id: number;
+      kind: CoverKind;
+      note: string | null;
+      user_id: number | null;
+      name: string | null;
+    }[] = await this.dataSource.query(
+      `SELECT sb.id, sb.slot_id, sb.section_id, sb.kind, sb.note, u.id AS user_id, u.name FROM substitutions sb
+       LEFT JOIN users u ON u.id = sb.substitute_user_id
+       WHERE sb.school_id = $1 AND sb.date = $2 AND sb.slot_id = ANY($3)`,
+      [schoolId, date, slotIds],
+    );
+    if (!rows.length) return result;
+    const [merges, counts] = await Promise.all([
+      this.dataSource.query(
+        `SELECT m.substitution_id, m.student_group, sec.id AS section_id, c.name AS class_name, sec.name AS section_name,
+                tu.id AS teacher_id, tu.name AS teacher_name
+         FROM substitution_merges m
+         JOIN sections sec ON sec.id = m.target_section_id JOIN classes c ON c.id = sec.class_id
+         LEFT JOIN users tu ON tu.id = m.target_teacher_user_id
+         WHERE m.substitution_id = ANY($1) ORDER BY m.id`,
+        [rows.map((row) => row.id)],
+      ) as Promise<
+        {
+          substitution_id: number;
+          student_group: MergeGroup;
+          section_id: number;
+          class_name: string;
+          section_name: string;
+          teacher_id: number | null;
+          teacher_name: string | null;
+        }[]
+      >,
+      this.groupCounts(rows.map((row) => Number(row.section_id))),
+    ]);
+    for (const row of rows) {
+      result.set(Number(row.slot_id), {
+        substitution_id: Number(row.id),
+        kind: row.kind,
+        substitute: row.user_id ? { id: Number(row.user_id), name: row.name ?? '' } : null,
+        note: row.note,
+        combined_into: merges
+          .filter((merge) => Number(merge.substitution_id) === Number(row.id))
+          .map((merge) => ({
+            section: { id: Number(merge.section_id), name: `${merge.class_name} - ${merge.section_name}` },
+            group: merge.student_group,
+            students: groupSize(counts.get(Number(row.section_id)), merge.student_group),
+            teacher: merge.teacher_id ? { id: Number(merge.teacher_id), name: merge.teacher_name ?? '' } : null,
+          })),
+      });
+    }
+    return result;
+  }
+
+  private async groupCounts(sectionIds: number[]): Promise<Map<number, StudentGroupCountDto>> {
+    const ids = [...new Set(sectionIds)];
+    if (!ids.length) return new Map();
+    const rows: { section_id: number; total: string; boys: string }[] = await this.dataSource.query(
+      `SELECT e.section_id, COUNT(*) AS total, COUNT(*) FILTER (WHERE s.gender = 'male') AS boys
+       FROM student_enrollments e
+       JOIN academic_years y ON y.id = e.academic_year_id AND y.is_current
+       JOIN students s ON s.id = e.student_id AND s.deleted_at IS NULL AND s.status = 'active'
+       WHERE e.section_id = ANY($1) GROUP BY e.section_id`,
+      [ids],
+    );
+    return new Map(
+      rows.map((row) => [
+        Number(row.section_id),
+        { total: Number(row.total), boys: Number(row.boys), girls: Number(row.total) - Number(row.boys) },
+      ]),
+    );
+  }
+
+  private async joiningStudents(date: string, targetSlotIds: number[]): Promise<Map<number, number>> {
+    if (!targetSlotIds.length) return new Map();
+    const rows: { target_slot_id: number; section_id: number; student_group: MergeGroup }[] =
+      await this.dataSource.query(
+        `SELECT m.target_slot_id, sb.section_id, m.student_group FROM substitution_merges m
+         JOIN substitutions sb ON sb.id = m.substitution_id
+         WHERE sb.date = $1 AND m.target_slot_id = ANY($2)`,
+        [date, targetSlotIds],
+      );
+    const counts = await this.groupCounts(rows.map((row) => Number(row.section_id)));
+    const result = new Map<number, number>();
+    for (const row of rows) {
+      const key = Number(row.target_slot_id);
+      result.set(key, (result.get(key) ?? 0) + groupSize(counts.get(Number(row.section_id)), row.student_group));
+    }
+    return result;
+  }
+
+  private async userNames(ids: number[]): Promise<Map<number, string>> {
+    if (!ids.length) return new Map();
+    const rows: { id: number; name: string }[] = await this.dataSource.query(
+      `SELECT id, name FROM users WHERE id = ANY($1) AND deleted_at IS NULL`,
+      [ids],
+    );
+    return new Map(rows.map((row) => [Number(row.id), row.name]));
+  }
+
+  private async notifyCombined(
+    schoolId: number,
+    slot: SlotRow,
+    date: string,
+    target: CombineTargetDto,
+    group: MergeGroup,
+    count: number,
+    absentName: string,
+  ) {
+    const periods = await this.timetable.periods(schoolId);
+    const period = periods.find((item) => item.period_no === Number(slot.period_no));
+    const [school] = await this.dataSource.query(`SELECT name FROM schools WHERE id = $1`, [schoolId]);
+    await this.notifications
+      .dispatch({
+        template: 'CLASS_COMBINED',
+        audience: { user_ids: [target.teacher.id] },
+        data: {
+          from: `${slot.class_name} - ${slot.section_name}`,
+          section: target.section.name,
+          group: GROUP_WORDS[group].en,
+          group_ta: GROUP_WORDS[group].ta,
+          count: String(count),
+          period: String(slot.period_no),
+          time: period ? `${period.start_time}-${period.end_time}` : '',
+          date: displayDate(date),
+          absent: absentName,
+          school: school?.name ?? '',
+        },
+      })
+      .catch((error: Error) => this.logger.warn(`Combined class alert for slot ${slot.id} not sent: ${error.message}`));
   }
 
   private async notify(schoolId: number, slot: SlotRow, date: string, userId: number, absentName: string) {
@@ -408,7 +696,7 @@ export class SubstitutesService {
   private presentSlot(
     slot: SlotRow,
     periods: BellPeriodDto[],
-  ): Omit<AbsentPeriodDto, 'substitution_id' | 'substitute' | 'note'> {
+  ): Omit<AbsentPeriodDto, 'substitution_id' | 'kind' | 'substitute' | 'note' | 'combined_into'> {
     const period = periods.find((item) => item.period_no === Number(slot.period_no));
     return {
       slot_id: Number(slot.id),

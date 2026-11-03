@@ -204,6 +204,15 @@ The admin web sets it in School setup → School profile: `POST /files` (purpose
 
 Substitutes: `POST /admin/substitutes`, `POST /admin/substitutes/auto` and `DELETE /admin/substitutes/{id}` need `substitutes.manage` (AO only; others get `403 FORBIDDEN` and can still view the board). A substitute is set for one date and one period, only for a teacher who is on approved leave or absent that day, and only from the teachers who are free in that period (`GET /admin/substitutes/free`); anyone else returns `409 SUBSTITUTE_BUSY`.
 
+### Combine class (instead of a proxy)
+
+When no teacher should take the period, the AO can send the students to other sections of the same class that have a period running at that time with a teacher in:
+
+1. `GET /admin/substitutes/combine-options?date=&slot_id=` returns `students: { total, boys, girls }` and `targets`: each running section with its subject, teacher (its own, or its proxy), `students` and `joining` (students already sent there). Empty `targets` means no other section is running, so assign a proxy.
+2. `POST /admin/substitutes/combine` with `mode: "whole"` and `section_id`, or `mode: "split"` with `boys_section_id` and `girls_section_id` (students marked other go with the girls). The teachers of those sections get `CLASS_COMBINED` (English and Tamil).
+
+The board then shows the period with `kind: "combine"` and `combined_into: [{ section, group, students, teacher }]`; a proxy has `kind: "proxy"` and `substitute`. Either one counts as covered. Setting a proxy replaces a combine and the other way round; `DELETE /admin/substitutes/{id}` removes either. Errors: `409 SECTION_NOT_AVAILABLE` (that section has no class with a teacher then), `400` on `girls_section_id` when boys and girls are sent to the same section. AO and super admin only.
+
 ## Parent app: my children
 
 `GET /mobile/parent/children` (Parent role) lists every active child linked to the signed-in parent, across schools, with this year's class:

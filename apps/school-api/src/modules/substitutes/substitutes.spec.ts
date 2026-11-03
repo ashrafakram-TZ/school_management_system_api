@@ -1,4 +1,4 @@
-import { rankCandidates, weekRange } from './substitutes.service';
+import { groupSize, rankCandidates, weekRange } from './substitutes.service';
 
 const candidate = (name: string, overrides: Partial<Parameters<typeof rankCandidates>[0][number]> = {}) => ({
   name,
@@ -43,5 +43,19 @@ describe('weekRange', () => {
 
   it('treats Sunday as the end of the week before', () => {
     expect(weekRange('2026-11-08')).toEqual({ from: '2026-11-02', to: '2026-11-07' });
+  });
+});
+
+describe('groupSize', () => {
+  const counts = { total: 32, boys: 17, girls: 15 };
+
+  it('sends the whole class, only the boys or only the girls', () => {
+    expect(groupSize(counts, 'all')).toBe(32);
+    expect(groupSize(counts, 'boys')).toBe(17);
+    expect(groupSize(counts, 'girls')).toBe(15);
+  });
+
+  it('is zero for a section with no students', () => {
+    expect(groupSize(undefined, 'all')).toBe(0);
   });
 });

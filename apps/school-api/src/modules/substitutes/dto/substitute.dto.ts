@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min, ValidateIf } from 'class-validator';
 import { IsDateOnly } from '../../../shared/dates';
 import { RefDto } from '../../students/dto/student-response.dto';
 import { SlotSubjectDto } from '../../timetable/dto/timetable.dto';
+import { MERGE_GROUPS, MergeGroup } from '../entities/substitution-merge.entity';
+import { COVER_KINDS, CoverKind } from '../entities/substitution.entity';
 
 const trimToNull = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() || null : value);
 
@@ -41,6 +43,77 @@ export class AssignSubstituteDto {
   note?: string | null;
 }
 
+export const COMBINE_MODES = ['whole', 'split'] as const;
+export type CombineMode = (typeof COMBINE_MODES)[number];
+
+export class CombineClassDto {
+  @IsDateOnly('2026-11-06')
+  date: string;
+
+  @ApiProperty({ example: 41, description: 'Period of the teacher who is away' })
+  @IsInt()
+  slot_id: number;
+
+  @ApiProperty({
+    enum: COMBINE_MODES,
+    example: 'split',
+    description: 'whole: the class sits with one section. split: boys go to one section, girls to another.',
+  })
+  @IsIn(COMBINE_MODES, { message: 'mode must be whole or split' })
+  mode: CombineMode;
+
+  @ApiPropertyOptional({ example: 12, description: 'Needed for whole: the section the class joins' })
+  @ValidateIf((dto: CombineClassDto) => dto.mode === 'whole')
+  @IsInt({ message: 'Choose the section the class joins' })
+  section_id?: number;
+
+  @ApiPropertyOptional({ example: 11, description: 'Needed for split: where the boys go' })
+  @ValidateIf((dto: CombineClassDto) => dto.mode === 'split')
+  @IsInt({ message: 'Choose the section for the boys' })
+  boys_section_id?: number;
+
+  @ApiPropertyOptional({
+    example: 13,
+    description: 'Needed for split: where the girls go (students marked other go with them)',
+  })
+  @ValidateIf((dto: CombineClassDto) => dto.mode === 'split')
+  @IsInt({ message: 'Choose the section for the girls' })
+  girls_section_id?: number;
+
+  @ApiPropertyOptional({ example: 'Bring the English notebook', nullable: true, type: String })
+  @IsOptional()
+  @Transform(trimToNull)
+  @ValidateIf((_dto, value) => value !== null)
+  @IsString()
+  @MaxLength(255)
+  note?: string | null;
+}
+
+export class StudentGroupCountDto {
+  @ApiProperty({ example: 32 })
+  total: number;
+
+  @ApiProperty({ example: 17 })
+  boys: number;
+
+  @ApiProperty({ example: 15, description: 'Girls, plus students marked other' })
+  girls: number;
+}
+
+export class CombinedIntoDto {
+  @ApiProperty({ type: RefDto, description: 'Section the students sit with' })
+  section: RefDto;
+
+  @ApiProperty({ enum: MERGE_GROUPS, example: 'boys' })
+  group: MergeGroup;
+
+  @ApiProperty({ example: 17 })
+  students: number;
+
+  @ApiProperty({ type: RefDto, nullable: true, description: 'Teacher taking that section in this period' })
+  teacher: RefDto | null;
+}
+
 export class AbsentPeriodDto {
   @ApiProperty({ example: 41 })
   slot_id: number;
@@ -66,8 +139,18 @@ export class AbsentPeriodDto {
   @ApiProperty({ nullable: true, type: Number, description: 'Set when a substitute is assigned' })
   substitution_id: number | null;
 
-  @ApiProperty({ type: RefDto, nullable: true })
+  @ApiProperty({
+    enum: COVER_KINDS,
+    nullable: true,
+    description: 'proxy: a teacher takes it. combine: students sit with other sections. null: not covered',
+  })
+  kind: CoverKind | null;
+
+  @ApiProperty({ type: RefDto, nullable: true, description: 'Proxy teacher (kind proxy)' })
   substitute: RefDto | null;
+
+  @ApiProperty({ type: [CombinedIntoDto], description: 'Where the students go (kind combine); empty otherwise' })
+  combined_into: CombinedIntoDto[];
 
   @ApiProperty({ nullable: true, type: String })
   note: string | null;
@@ -182,4 +265,41 @@ export class MySubstitutionDto {
 
   @ApiProperty({ nullable: true, type: String })
   note: string | null;
+}
+
+export class CombineTargetDto {
+  @ApiProperty({ example: 52, description: 'That section’s period at the same time' })
+  slot_id: number;
+
+  @ApiProperty({ type: RefDto, example: { id: 12, name: '6 - B' } })
+  section: RefDto;
+
+  @ApiProperty({ type: SlotSubjectDto })
+  subject: SlotSubjectDto;
+
+  @ApiProperty({ type: RefDto, description: 'Teacher in that class: its own teacher, or its proxy' })
+  teacher: RefDto;
+
+  @ApiProperty({ nullable: true, type: String })
+  room: string | null;
+
+  @ApiProperty({ example: 31, description: 'Its own students' })
+  students: number;
+
+  @ApiProperty({ example: 0, description: 'Students already sent there from other combined classes' })
+  joining: number;
+}
+
+export class CombineOptionsDto {
+  @ApiProperty({ type: AbsentPeriodDto })
+  period: AbsentPeriodDto;
+
+  @ApiProperty({ type: StudentGroupCountDto, description: 'Students of the class that needs cover' })
+  students: StudentGroupCountDto;
+
+  @ApiProperty({
+    type: [CombineTargetDto],
+    description: 'Other sections of the same class with a teacher in that period. Empty when none is running.',
+  })
+  targets: CombineTargetDto[];
 }

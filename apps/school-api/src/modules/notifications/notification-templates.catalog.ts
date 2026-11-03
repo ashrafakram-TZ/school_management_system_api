@@ -26,6 +26,7 @@ export const TEMPLATES = {
   TRIP_NOT_BOARDED: 'TRIP_NOT_BOARDED',
   RESULT_PUBLISHED: 'RESULT_PUBLISHED',
   ACHIEVEMENT_ADDED: 'ACHIEVEMENT_ADDED',
+  CLASS_COMBINED: 'CLASS_COMBINED',
 } as const;
 
 interface TemplateText {
@@ -340,6 +341,27 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
         title: 'மாற்று வகுப்பு: {{section}}, பாடவேளை {{period}}',
         body: '{{date}} அன்று {{period}} ஆம் பாடவேளையில் ({{time}}) {{absent}} அவர்களுக்குப் பதிலாக {{section}} வகுப்பில் {{subject}} எடுக்கவும்.{{room}}',
         sms_body: 'மாற்று வகுப்பு: {{section}} பாடவேளை {{period}} ({{time}}) {{date}}, {{absent}} பதிலாக. - {{school}}',
+      },
+    },
+  },
+  {
+    code: TEMPLATES.CLASS_COMBINED,
+    category: 'attendance',
+    push: true,
+    sms: 'fallback',
+    critical: false,
+    text: {
+      en: {
+        title: 'Combined class: {{from}} joins {{section}}, period {{period}}',
+        body: '{{count}} {{group}} of {{from}} will sit in your {{section}} class in period {{period}} ({{time}}) on {{date}}, as {{absent}} is on leave.',
+        sms_body:
+          'Combined class: {{count}} {{group}} of {{from}} join {{section}} period {{period}} ({{time}}) on {{date}}. - {{school}}',
+      },
+      ta: {
+        title: 'இணைந்த வகுப்பு: {{from}} → {{section}}, பாடவேளை {{period}}',
+        body: '{{date}} அன்று {{period}} ஆம் பாடவேளையில் ({{time}}) {{absent}} விடுப்பில் இருப்பதால் {{from}} வகுப்பின் {{count}} {{group_ta}} உங்கள் {{section}} வகுப்பில் அமர்வார்கள்.',
+        sms_body:
+          'இணைந்த வகுப்பு: {{from}} {{count}} {{group_ta}} → {{section}} பாடவேளை {{period}} ({{time}}) {{date}}. - {{school}}',
       },
     },
   },

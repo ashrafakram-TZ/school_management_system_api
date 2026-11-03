@@ -1,5 +1,8 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
+export const COVER_KINDS = ['proxy', 'combine'] as const;
+export type CoverKind = (typeof COVER_KINDS)[number];
+
 @Entity('substitutions')
 @Index('UQ_substitutions_slot_date', ['slot_id', 'date'], { unique: true })
 @Index('UQ_substitutions_teacher_period', ['substitute_user_id', 'date', 'period_no'], { unique: true })
@@ -29,9 +32,12 @@ export class Substitution {
   @Column({ type: 'int', nullable: true })
   absent_user_id: number | null;
 
+  @Column({ type: 'varchar', length: 10, default: 'proxy' })
+  kind: CoverKind;
+
   @Index()
-  @Column({ type: 'int' })
-  substitute_user_id: number;
+  @Column({ type: 'int', nullable: true })
+  substitute_user_id: number | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   note: string | null;

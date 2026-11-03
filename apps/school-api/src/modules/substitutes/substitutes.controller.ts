@@ -6,6 +6,8 @@ import { PERMISSIONS } from '../access/access.catalog';
 import {
   AssignSubstituteDto,
   AutoAssignResultDto,
+  CombineClassDto,
+  CombineOptionsDto,
   FreeTeachersDto,
   FreeTeachersQueryDto,
   SubstituteBoardDto,
@@ -44,6 +46,34 @@ export class SubstitutesController {
     return this.substitutes.free(schoolId, query.date, query.slot_id);
   }
 
+  @Get('combine-options')
+  @RequirePermissions(PERMISSIONS.TIMETABLE_VIEW)
+  @ApiOperation({
+    summary: 'Sections the class can sit with in that period, and its boys and girls count',
+    description:
+      'Only other sections of the same class that have a period at the same time with a teacher in (its own teacher, or its proxy). Empty targets means no class is running, so assign a proxy instead.',
+  })
+  @ApiEnvelope(CombineOptionsDto)
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  combineOptions(@SchoolId() schoolId: number, @Query() query: FreeTeachersQueryDto) {
+    return this.substitutes.combineOptions(schoolId, query.date, query.slot_id);
+  }
+
+  @Post('combine')
+  @RequirePermissions(PERMISSIONS.SUBSTITUTES_MANAGE)
+  @ResponseMessage('Class combined')
+  @ApiOperation({
+    summary: 'Combine the class with other sections instead of a proxy teacher',
+    description:
+      'mode whole: the whole class sits with section_id. mode split: boys go to boys_section_id and girls (and students marked other) to girls_section_id. The teachers of those sections are told in the Staff app. Replaces a proxy already set for the period. 409 SECTION_NOT_AVAILABLE when the section has no class with a teacher in that period; 409 TEACHER_NOT_ABSENT when the period’s teacher is in.',
+  })
+  @ApiEnvelope(SubstituteBoardDto, { message: 'Class combined' })
+  @ApiErrors(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT)
+  @HttpCode(HttpStatus.OK)
+  combine(@SchoolId() schoolId: number, @Body() dto: CombineClassDto, @CurrentUser() actor: AuthUser) {
+    return this.substitutes.combine(schoolId, dto, actor);
+  }
+
   @Post()
   @RequirePermissions(PERMISSIONS.SUBSTITUTES_MANAGE)
   @ResponseMessage('Substitute assigned')
@@ -72,7 +102,7 @@ export class SubstitutesController {
   @Delete(':id')
   @RequirePermissions(PERMISSIONS.SUBSTITUTES_MANAGE)
   @ResponseMessage('Substitute removed')
-  @ApiOperation({ summary: 'Remove a substitute from a period' })
+  @ApiOperation({ summary: 'Remove the proxy or the combined class from a period' })
   @ApiEnvelope(SubstituteBoardDto, { message: 'Substitute removed' })
   @ApiErrors(HttpStatus.NOT_FOUND)
   cancel(@SchoolId() schoolId: number, @Param('id', ParseIntPipe) id: number) {
