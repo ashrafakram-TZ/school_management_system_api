@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
-import { AppSection } from '../../access/entities/role.entity';
+import { ClientApp } from '../../access/entities/role.entity';
 import { Platform } from '../../users/entities/user-device.entity';
 import { User } from '../../users/entities/user.entity';
 
@@ -20,7 +20,7 @@ export class UserSession {
   refresh_token_hash: string;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
-  app: AppSection | null;
+  app: ClientApp | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
   platform: Platform | null;

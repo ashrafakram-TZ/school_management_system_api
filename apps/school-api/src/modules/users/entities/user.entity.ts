@@ -41,6 +41,12 @@ export class User extends TrackedEntity {
   @Column({ type: 'timestamptz', nullable: true })
   last_login_at: Date | null;
 
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  auth_user_id: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  auth_registered_at: Date | null;
+
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   user_roles?: UserRole[];
 }

@@ -34,6 +34,15 @@ export const authConfig = registerAs('auth', () => ({
   refreshTtlDays: Number(process.env.REFRESH_TTL_DAYS ?? 30),
 }));
 
+export const centralAuthConfig = registerAs('centralAuth', () => ({
+  provider: (process.env.AUTH_PROVIDER ?? 'local') as 'local' | 'central',
+  url: (process.env.CENTRAL_AUTH_URL ?? '').replace(/\/+$/, ''),
+  timeoutMs: Number(process.env.CENTRAL_AUTH_TIMEOUT_MS ?? 8000),
+  emailDomain: process.env.AUTH_EMAIL_DOMAIN ?? '',
+}));
+
+export type CentralAuthConfig = ConfigType<typeof centralAuthConfig>;
+
 export const otpConfig = registerAs('otp', () => ({
   mode: (process.env.OTP_MODE ?? 'test') as 'test' | 'sms',
   testCode: process.env.OTP_TEST_CODE ?? '123456',
@@ -46,7 +55,7 @@ export const otpConfig = registerAs('otp', () => ({
 
 export const smsConfig = registerAs('sms', () => ({
   driver: (process.env.SMS_DRIVER ?? 'log') as 'log' | 'ping4sms' | 'kafka',
-  otpDriver: (process.env.OTP_SMS_DRIVER ?? 'ping4sms') as 'ping4sms' | 'kafka',
+  otpDriver: (process.env.OTP_SMS_DRIVER ?? 'kafka') as 'ping4sms' | 'kafka',
   pingUrl: process.env.PING_API_URL ?? 'http://site.ping4sms.com/api/smsapi',
   pingApiKey: process.env.PING_API_KEY ?? '',
   pingRoute: process.env.PING_ROUTE ?? '',
@@ -113,6 +122,7 @@ export const ALL_CONFIGS = [
   appConfig,
   dbConfig,
   authConfig,
+  centralAuthConfig,
   otpConfig,
   smsConfig,
   kafkaNotifyConfig,

@@ -19,6 +19,7 @@ import {
 const toBoolean = ({ value }: { value: unknown }) => value === true || value === 'true';
 
 const otpSms = (env: EnvironmentVariables) => env.OTP_MODE === 'sms';
+const centralAuth = (env: EnvironmentVariables) => env.AUTH_PROVIDER === 'central';
 const usesPing = (env: EnvironmentVariables) =>
   env.SMS_DRIVER === 'ping4sms' || (otpSms(env) && env.OTP_SMS_DRIVER === 'ping4sms');
 const usesKafka = (env: EnvironmentVariables) =>
@@ -110,6 +111,26 @@ export class EnvironmentVariables {
   @IsIn(['test', 'sms'])
   OTP_MODE: string = 'test';
 
+  @IsIn(['local', 'central'], { message: 'AUTH_PROVIDER must be local or central' })
+  AUTH_PROVIDER: string = 'local';
+
+  @ValidateIf(centralAuth)
+  @IsUrl(
+    { require_tld: false, require_protocol: true },
+    { message: 'CENTRAL_AUTH_URL must be the Auth Service base URL, like http://host:3002/api/auth' },
+  )
+  CENTRAL_AUTH_URL: string;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1000)
+  @Max(60000)
+  CENTRAL_AUTH_TIMEOUT_MS: number = 8000;
+
+  @ValidateIf(centralAuth)
+  @Matches(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/, { message: 'AUTH_EMAIL_DOMAIN must be a domain like school.tamilzorous.com' })
+  AUTH_EMAIL_DOMAIN: string;
+
   @Matches(/^\d{6}$/, { message: 'OTP_TEST_CODE must be 6 digits' })
   OTP_TEST_CODE: string = '123456';
 
@@ -142,7 +163,7 @@ export class EnvironmentVariables {
   SMS_DRIVER: string = 'log';
 
   @IsIn(['ping4sms', 'kafka'])
-  OTP_SMS_DRIVER: string = 'ping4sms';
+  OTP_SMS_DRIVER: string = 'kafka';
 
   @ValidateIf(usesPing)
   @IsString()

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { APP_SECTIONS, AppSection } from '../../access/entities/role.entity';
+import { CLIENT_APPS, ClientApp } from '../../access/entities/role.entity';
 import { Platform, PLATFORMS } from '../entities/user-device.entity';
 
 export class RegisterDeviceDto {
@@ -18,13 +18,13 @@ export class RegisterDeviceDto {
   platform: Platform;
 
   @ApiPropertyOptional({
-    enum: APP_SECTIONS,
+    enum: CLIENT_APPS,
     example: 'parent',
     description: 'Which app section is open on this device',
   })
   @IsOptional()
-  @IsIn(APP_SECTIONS)
-  app?: AppSection;
+  @IsIn(CLIENT_APPS)
+  app?: ClientApp;
 
   @ApiPropertyOptional({ example: 'Pixel 7' })
   @IsOptional()

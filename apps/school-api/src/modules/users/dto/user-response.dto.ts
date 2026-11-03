@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { APP_SECTIONS, AppSection } from '../../access/entities/role.entity';
+import { APP_SECTIONS, AppSection, MOBILE_SECTIONS, MobileSection } from '../../access/entities/role.entity';
 import { Language, LANGUAGES, USER_STATUSES, UserStatus } from '../entities/user.entity';
 
 export class RoleSummaryDto {
@@ -53,6 +53,20 @@ export class UserListItemDto {
   roles: RoleSummaryDto[];
 }
 
+export class ProfileSectionDto {
+  @ApiProperty({ enum: APP_SECTIONS, example: 'parent' })
+  app: AppSection;
+
+  @ApiProperty({ example: 'Parent', description: 'Label for the role switcher' })
+  label: string;
+
+  @ApiProperty({ example: false, description: 'true for parent, staff and driver: opens in the mobile app' })
+  mobile: boolean;
+
+  @ApiProperty({ type: [RoleSummaryDto] })
+  roles: RoleSummaryDto[];
+}
+
 export class UserProfileDto extends UserListItemDto {
   @ApiProperty({ type: SchoolSummaryDto, nullable: true })
   school: SchoolSummaryDto | null;
@@ -64,6 +78,21 @@ export class UserProfileDto extends UserListItemDto {
     description: 'Distinct apps this user can open. Show a role picker when there is more than one.',
   })
   apps: AppSection[];
+
+  @ApiProperty({
+    enum: MOBILE_SECTIONS,
+    isArray: true,
+    example: ['parent', 'staff'],
+    description:
+      'Sections this user can open in the mobile app. One: open it directly. Two or more: show a role switcher; the same token works for all of them.',
+  })
+  mobile_apps: MobileSection[];
+
+  @ApiProperty({
+    type: [ProfileSectionDto],
+    description: 'Each section the user can open, with its label and roles, for the profile screen and role switcher',
+  })
+  sections: ProfileSectionDto[];
 
   @ApiProperty({ type: [String], example: ['users.view', 'fleet.view'] })
   permissions: string[];

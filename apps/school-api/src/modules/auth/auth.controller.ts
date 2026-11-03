@@ -29,7 +29,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Step 1: send an OTP to a registered mobile number',
     description:
-      'Errors: MOBILE_NOT_REGISTERED (404), ACCOUNT_INACTIVE (403), OTP_RESEND_TOO_SOON / OTP_RATE_LIMITED (429), SMS_FAILED (503).',
+      'The number must be an active user of the school system. With AUTH_PROVIDER=central the OTP is sent by the Tamilzorous Auth Service (valid 15 minutes); a user missing there is registered on the first request. Errors: MOBILE_NOT_REGISTERED (404), ACCOUNT_INACTIVE (403), OTP_RESEND_TOO_SOON / OTP_RATE_LIMITED (429), SMS_FAILED / AUTH_SERVICE_UNAVAILABLE (503).',
   })
   @ApiEnvelope(OtpSentDto, { message: 'OTP sent' })
   @ApiErrors(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.TOO_MANY_REQUESTS)
@@ -44,7 +44,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Step 2: verify the OTP and receive tokens with the user profile',
     description:
-      'Errors: OTP_INVALID / OTP_EXPIRED (401), OTP_ATTEMPTS_EXCEEDED (429). Send client.fcm_token to register push in the same call.',
+      'The code is checked by the Auth Service (AUTH_PROVIDER=central) and the school session is issued here. Errors: OTP_INVALID / OTP_EXPIRED (401), OTP_ATTEMPTS_EXCEEDED (429), AUTH_SERVICE_UNAVAILABLE (503). Send client.fcm_token to register push in the same call.',
   })
   @ApiEnvelope(LoginResponseDto, { message: 'Signed in' })
   @ApiErrors(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.TOO_MANY_REQUESTS)

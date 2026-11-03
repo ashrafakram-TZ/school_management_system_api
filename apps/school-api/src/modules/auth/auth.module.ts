@@ -5,6 +5,7 @@ import { authConfig, AuthConfig } from '../../config/configuration';
 import { User } from '../users/entities/user.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { CentralAuthClient } from './central-auth.client';
 import { OtpRequest } from './entities/otp-request.entity';
 import { UserSession } from './entities/user-session.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -24,7 +25,7 @@ import { TokenService } from './token.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, OtpService, TokenService, JwtAuthGuard, PermissionsGuard],
+  providers: [AuthService, OtpService, TokenService, CentralAuthClient, JwtAuthGuard, PermissionsGuard],
   exports: [TokenService, JwtAuthGuard, PermissionsGuard],
 })
 export class AuthModule {}

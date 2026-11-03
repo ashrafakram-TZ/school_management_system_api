@@ -1,4 +1,5 @@
 import { UserAccess } from '../access/access.service';
+import { MOBILE_SECTIONS, MobileSection, SECTION_LABELS } from '../access/entities/role.entity';
 import { RoleSummaryDto, UserListItemDto, UserProfileDto } from './dto/user-response.dto';
 
 export function toRoleSummaries(access: UserAccess): RoleSummaryDto[] {
@@ -26,6 +27,13 @@ export function toUserProfile(access: UserAccess): UserProfileDto {
     ...toUserListItem(access),
     school: user.school ? { id: user.school.id, name: user.school.name, code: user.school.code } : null,
     apps: access.apps,
+    mobile_apps: MOBILE_SECTIONS.filter((section) => access.apps.includes(section)) as MobileSection[],
+    sections: access.apps.map((app) => ({
+      app,
+      label: SECTION_LABELS[app],
+      mobile: (MOBILE_SECTIONS as readonly string[]).includes(app),
+      roles: toRoleSummaries(access).filter((role) => role.app === app),
+    })),
     permissions: access.permissions,
     photo_file_id: user.photo_file_id,
   };

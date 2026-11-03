@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, ValidateNested } from 'class-validator';
-import { APP_SECTIONS, AppSection } from '../../access/entities/role.entity';
+import { CLIENT_APPS, ClientApp } from '../../access/entities/role.entity';
 import { IsMobile } from '../../../shared/mobile';
 import { Platform, PLATFORMS } from '../../users/entities/user-device.entity';
 import { UserProfileDto } from '../../users/dto/user-response.dto';
@@ -18,13 +18,27 @@ export class RequestOtpDto {
   @IsString()
   @MaxLength(20)
   app_signature?: string;
+
+  @ApiPropertyOptional({
+    enum: CLIENT_APPS,
+    example: 'mobile',
+    description:
+      'Which app is asking. Send it so a number without access to that app gets 403 APP_NOT_ALLOWED before any SMS is sent.',
+  })
+  @IsOptional()
+  @IsIn(CLIENT_APPS)
+  app?: ClientApp;
 }
 
 export class ClientInfoDto {
-  @ApiPropertyOptional({ enum: APP_SECTIONS, example: 'parent' })
-  @IsOptional()
-  @IsIn(APP_SECTIONS)
-  app?: AppSection;
+  @ApiProperty({
+    enum: CLIENT_APPS,
+    example: 'mobile',
+    description:
+      'mobile = the Flutter app (Parent, Staff and Driver in one app); admin = the admin web. Sign-in is refused with 403 APP_NOT_ALLOWED when the user has no role for that app.',
+  })
+  @IsIn(CLIENT_APPS, { message: 'client.app must be mobile or admin' })
+  app: ClientApp;
 
   @ApiPropertyOptional({ enum: PLATFORMS, example: 'android' })
   @IsOptional()
@@ -61,11 +75,13 @@ export class VerifyOtpDto {
   @Matches(/^\d{6}$/, { message: 'otp must be 6 digits' })
   otp: string;
 
-  @ApiPropertyOptional({ type: ClientInfoDto })
-  @IsOptional()
+  @ApiProperty({ type: ClientInfoDto })
+  @IsNotEmpty({
+    message: 'client is required: send { "app": "mobile" } from the Flutter app or { "app": "admin" } from the web',
+  })
   @ValidateNested()
   @Type(() => ClientInfoDto)
-  client?: ClientInfoDto;
+  client: ClientInfoDto;
 }
 
 export class RefreshTokenDto {

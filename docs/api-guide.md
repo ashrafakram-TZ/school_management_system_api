@@ -25,6 +25,41 @@ The Admin web and the Flutter app (Staff, Parent and Driver roles) call the same
 
 ## Sign-in flow
 
+Sign-in uses the central **Tamilzorous Auth Service** for the OTP (`AUTH_PROVIDER=central`). The app still calls only this API; nothing changes in the app:
+
+- `POST /auth/otp/request`: we check the number is an active user here, then the Auth Service sends the SMS (valid **15 minutes**, resend after 30 seconds). A user the Auth Service does not know yet is registered there automatically on this first request (name, mobile, email; staff and parents without an email get `firstname.lastname.1234@school.tamilzorous.com`).
+- `POST /auth/otp/verify`: the Auth Service checks the code; this API then issues the school session (`access_token`, `refresh_token`) with school and roles.
+- `POST /auth/refresh` and `POST /auth/logout` stay in this API until the Auth Service adds refresh and logout.
+- Deactivating a user here blocks OTP and ends every session at once.
+
+### Which app can sign in
+
+Send the app on both calls: `"app": "mobile"` in `/auth/otp/request` and `"client": { "app": "mobile", ... }` in `/auth/otp/verify` (the admin web sends `"admin"`). `client.app` is required.
+
+| `app` | Who can sign in |
+|---|---|
+| `mobile` (Flutter) | Users with a Parent, Teacher, HOD, Driver or Attendant role |
+| `admin` (web) | Users with Super admin, Admin, Principal, AO or Transport in-charge |
+
+Anyone else gets `403 APP_NOT_ALLOWED` at the OTP request, so no SMS is sent.
+
+### One app, switch roles inside it
+
+One person, one sign-in. A number that is both a parent and a teacher signs in once; the profile (`data.user` in the sign-in response, or `GET /me`) says which sections they can open:
+
+```json
+"mobile_apps": ["staff", "parent"],
+"sections": [
+  { "app": "staff",  "label": "Staff",  "mobile": true, "roles": [{ "code": "TEACHER", "name": "Teacher", "app": "staff" }] },
+  { "app": "parent", "label": "Parent", "mobile": true, "roles": [{ "code": "PARENT",  "name": "Parent",  "app": "parent" }] }
+]
+```
+
+- One entry in `mobile_apps`: open that home directly.
+- Two or more: show a chooser once, remember it on the phone, and offer "Switch to Parent / Staff" in the profile menu.
+- Switching needs no new OTP and no new token: the same `access_token` works for `/mobile/parent/*` and `/mobile/teacher/*`.
+
+
 1. `POST /auth/otp/request` with `{ "mobile": "9876543210" }`. Returns `expires_in` and `resend_in` (seconds) for the countdown.
 2. `POST /auth/otp/verify` with `{ "mobile": "...", "otp": "123456", "client": { "app": "parent", "platform": "android", "device_name": "Pixel 7", "app_version": "1.0.0", "fcm_token": "..." } }`.
 3. Store `access_token` and `refresh_token` securely. Send `Authorization: Bearer <access_token>` on every call.

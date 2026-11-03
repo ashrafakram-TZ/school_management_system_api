@@ -56,6 +56,94 @@ const TAGS: [string, string][] = [
   ['Health', 'Service status'],
 ];
 
+const CENTRAL_SIGN_IN = `**Sign-in uses the Tamilzorous Auth Service.** The OTP SMS is sent and checked by the central Auth Service. Apps call only the \`/auth/*\` endpoints of this API; this API talks to the Auth Service and returns the school session (school and roles). Do not call the Auth Service directly from the web or mobile app. Refresh and sign-out stay in this API until the Auth Service provides them.`;
+
+const LOCAL_SIGN_IN = `**Sign-in uses this API's own OTP** (\`AUTH_PROVIDER=local\`, for local testing; the test code is 123456 when \`OTP_MODE=test\`).`;
+
+const SIGN_IN_FLOW = `### Mobile app: sign-in and role switch (read first)
+
+One Flutter app for Parent, Staff (teacher) and Driver. One sign-in per person; one token works for every role they have.
+
+1. **Mobile number screen**: \`POST /auth/otp/request\` with \`{ "mobile": "9791543989", "app": "mobile" }\`. A number with no Parent, Teacher, HOD, Driver or Attendant role gets **403 APP_NOT_ALLOWED** and no SMS is sent. Admin-only users (super admin, principal, AO) cannot use the mobile app.
+2. **OTP screen**: \`POST /auth/otp/verify\` with \`{ "mobile", "otp", "client": { "app": "mobile", "platform": "android" } }\`. Save \`access_token\` and \`refresh_token\`; read \`data.user.mobile_apps\` and \`data.user.sections\`.
+3. **Where to go next** (decide from \`mobile_apps\`):
+
+| \`mobile_apps\` | Open |
+|---|---|
+| \`["parent"]\` | Parent home directly, no chooser |
+| \`["staff"]\` | Staff home directly |
+| \`["driver"]\` | Driver home directly |
+| two or more, e.g. \`["staff", "parent"]\` | Chooser screen: one button per item in \`sections\` (use \`label\`), then open that home |
+
+4. **Switch role** later from the profile menu ("Switch to Parent / Staff"): no new OTP and no new token. The same \`access_token\` calls \`/mobile/parent/*\`, \`/mobile/teacher/*\` or \`/mobile/driver/*\`; each endpoint checks the role. Remember the last choice on the phone and call \`GET /me\` on app start to rebuild the chooser.
+5. **Keep signed in** with \`POST /auth/refresh\` (store the new refresh token every time); **sign out** with \`POST /auth/logout\`.
+
+Sample number with both roles in the demo school: **9791543989** (Teacher of 6 - A Computer Science, and Parent of Aadhavan Senthil). It gets \`"mobile_apps": ["staff", "parent"]\`.`;
+
+const AFTER_VERIFY =
+  'After sign-in, read data.user.mobile_apps: one item → open that home directly; two or more → show a chooser from data.user.sections (label) and open the chosen home. Switching later needs no new OTP or token.';
+
+const ME_HELP =
+  'Call on app start: mobile_apps and sections rebuild the role chooser ("Switch to Parent / Staff"). The same token works for every section listed.';
+
+function describeSignIn(document: OpenAPIObject): OpenAPIObject {
+  const central = process.env.AUTH_PROVIDER === 'central';
+  const summaries: Record<string, string> = central
+    ? {
+        'otp/request': 'Step 1: send OTP (sent by the Tamilzorous Auth Service)',
+        'otp/verify': 'Step 2: verify OTP with the Tamilzorous Auth Service and get the school session',
+        refresh: 'Refresh the school session (this API, until the Auth Service adds refresh)',
+        logout: 'Sign out (this API, until the Auth Service adds sign-out)',
+      }
+    : {};
+  const paths = Object.fromEntries(
+    Object.entries(document.paths).map(([path, item]) => {
+      const key = Object.keys(summaries).find((name) => path.endsWith(`/auth/${name}`));
+      const isVerify = path.endsWith('/auth/otp/verify');
+      const isMe = /\/v\d+\/me$/.test(path);
+      if (!key && !isVerify && !isMe) return [path, item];
+      const operations = Object.fromEntries(
+        Object.entries(item).map(([method, operation]) => {
+          if (typeof operation !== 'object' || !operation || !('responses' in operation)) return [method, operation];
+          const current = operation as { summary?: string; description?: string };
+          const extra = isVerify ? AFTER_VERIFY : isMe && method === 'get' ? ME_HELP : '';
+          return [
+            method,
+            {
+              ...operation,
+              ...(key ? { summary: summaries[key] } : {}),
+              ...(extra ? { description: [extra, current.description].filter(Boolean).join(' ') } : {}),
+            },
+          ];
+        }),
+      );
+      return [path, operations];
+    }),
+  );
+  return {
+    ...document,
+    info: {
+      ...document.info,
+      description: `${central ? CENTRAL_SIGN_IN : LOCAL_SIGN_IN}
+
+${SIGN_IN_FLOW}
+
+${document.info.description ?? ''}`,
+    },
+    paths,
+    tags: (document.tags ?? []).map((tag) =>
+      tag.name === 'Auth'
+        ? {
+            ...tag,
+            description: central
+              ? 'Sign-in through the Tamilzorous Auth Service (OTP sent and checked there), school session, refresh and sign-out'
+              : 'OTP sign-in (this API, local mode), token refresh and sign-out',
+          }
+        : tag,
+    ),
+  };
+}
+
 const SHARED = /^\/api\/(v\d+\/)?(auth|me|files|health)(\/|$)/;
 
 const AUDIENCES = [
@@ -97,7 +185,8 @@ function slice(document: OpenAPIObject, owns: RegExp, title: string, intro: stri
       ...document.info,
       title,
       description: `${intro}
-${DESCRIPTION}`,
+
+${document.info.description ?? DESCRIPTION}`,
     },
     paths,
     tags: (document.tags ?? []).filter((tag) => used.has(tag.name)),
@@ -111,7 +200,7 @@ export function setupSwagger(app: INestApplication): void {
     .setVersion('1.0')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' });
   TAGS.forEach(([name, description]) => builder.addTag(name, description));
-  const document = SwaggerModule.createDocument(app, builder.build());
+  const document = describeSignIn(SwaggerModule.createDocument(app, builder.build()));
 
   for (const audience of AUDIENCES) {
     SwaggerModule.setup(

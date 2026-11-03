@@ -72,6 +72,7 @@ Bus tracking is **not** in this repo. The Telematics service (`C:/Users/DELL/tel
 - Restrict with `@RequirePermissions(PERMISSIONS.X)` (admin) or `@RequireRoles(ROLES.PARENT)` (mobile). Read the caller with `@CurrentUser() user: AuthUser`.
 - New permissions go in `modules/access/access.catalog.ts` (`PERMISSIONS`, `PERMISSION_CATALOG`, role mapping in `ROLE_CATALOG`), then `npm run seed`.
 - Refresh tokens rotate; reuse of an old one revokes the session. Deactivating or deleting a user revokes all sessions and push devices.
+- **OTP comes from the central Tamilzorous Auth Service** when `AUTH_PROVIDER=central` (`CENTRAL_AUTH_URL`, `modules/auth/central-auth.client.ts`): `/auth/otp/request` checks our user is active, then calls its `send-otp` (registering the user there on first use: name, mobile, email or a name-based email on `AUTH_EMAIL_DOMAIN`, role SUPER_ADMIN/ADMIN → TENANT, others → TECHNICIAN); `/auth/otp/verify` calls its `verify-otp`, then issues our session. Users, roles, school and deactivation stay ours; refresh and logout stay ours until the Auth Service provides them. `AUTH_PROVIDER=local` keeps the built-in OTP (test code 123456) for tests and demos.
 
 ## Lists and search
 
@@ -112,7 +113,7 @@ Send through `NotificationsService.dispatch({ template, audience, data })`:
 
 - `SMS_DRIVER=log` writes to the outbox only. `ping4sms` sends directly (needs a DLT template id per template). `kafka` publishes to the central Tamilzorous notification service, the same pattern as `NOOL360/softsilk_api`.
 - Kafka message on topic `NOTIFY_KAFKA_TOPIC` (default `notifications`): `{ type: 'sms'|'email', tenantId, to: '91XXXXXXXXXX', templateId, variables }`. `templateId` = `NOTIFY_TEMPLATE_PREFIX` + lowercase template code (`school_student_absent`). Variables are the dispatch `data` plus `name`.
-- `OTP_SMS_DRIVER` picks the OTP route: `ping4sms` (DLT OTP template, same text as SoftSilk) or `kafka` (shared `otp` template).
+- With `AUTH_PROVIDER=central` the OTP comes from the Auth Service and these OTP settings do not apply. In local mode `OTP_SMS_DRIVER` (optional, default `kafka`, shared `otp` template) picks the OTP route; `ping4sms` also needs the `PING_*` settings.
 - Code: `modules/sms/sms.service.ts`, `modules/sms/kafka-notify.service.ts`.
 
 ## Infrastructure switches

@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { AppSection } from '../../access/entities/role.entity';
+import { ClientApp } from '../../access/entities/role.entity';
 import { User } from './user.entity';
 
 export const PLATFORMS = ['android', 'ios', 'web'] as const;
@@ -38,7 +38,7 @@ export class UserDevice {
   platform: Platform;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
-  app: AppSection | null;
+  app: ClientApp | null;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   device_name: string | null;

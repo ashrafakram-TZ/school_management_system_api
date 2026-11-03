@@ -42,7 +42,7 @@ Services that need extra infrastructure sit behind `.env` switches. This phase r
 | `QUEUE_DRIVER` | `memory` (in-process, retries with backoff) | `redis` |
 | `VIRUS_SCAN` | `off` (files marked `not_scanned`) | `clamav` |
 | `SMS_DRIVER` | `log` (written to the outbox, not sent), `ping4sms` or `kafka` | |
-| `OTP_SMS_DRIVER` | `ping4sms` (DLT OTP template) or `kafka` (`otp` template) | |
+| `OTP_SMS_DRIVER` | Optional, local sign-in only: `kafka` (default, `otp` template) or `ping4sms` (needs `PING_*`) | |
 | `PUSH_DRIVER` | `off` or `fcm` (needs `FIREBASE_CREDENTIALS_FILE`) | |
 | `OTP_MODE` | `test` or `sms` | |
 
