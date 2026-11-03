@@ -42,6 +42,8 @@ const TAGS: [string, string][] = [
   ['Admin · Timetable', 'Bell schedule, section timetable builder with clash checks, workload report'],
   ['Admin · Substitutes', 'Teachers away today, free teachers per period, assign and notify substitutes'],
   ['Admin · Payroll', 'Salary structures, monthly payroll runs, payslip PDFs'],
+  ['Admin · Fees', 'Fee heads, class fee plans, invoices with transport, payments, receipts and dues'],
+  ['Admin · Exams', 'Exams, papers, marks entry, ranked results, rank holders and publishing'],
   ['Admin · Transport', 'Buses, trackers, drivers, document expiry, routes and stops, students by stop'],
   [
     'Admin · Trips',

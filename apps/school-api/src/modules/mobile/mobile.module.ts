@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
+import { AchievementsModule } from '../achievements/achievements.module';
 import { AttendanceModule } from '../attendance/attendance.module';
+import { ExamsModule } from '../exams/exams.module';
+import { FeesModule } from '../fees/fees.module';
 import { StaffModule } from '../staff/staff.module';
 import { StaffAttendanceModule } from '../staff-attendance/staff-attendance.module';
 import { StaffLeaveModule } from '../staff-leave/staff-leave.module';
@@ -13,6 +16,8 @@ import { TransportModule } from '../transport/transport.module';
 import { MobileAccessService } from './mobile-access.service';
 import { MobileParentAttendanceController, MobileTeacherAttendanceController } from './mobile-attendance.controller';
 import { MobileParentChildController, MobileTeacherController } from './mobile.controller';
+import { MobileParentAchievementsController, MobileTeacherAppController } from './mobile-teacher-app.controller';
+import { TeacherAppService } from './teacher-app.service';
 
 @Module({
   imports: [
@@ -27,13 +32,19 @@ import { MobileParentChildController, MobileTeacherController } from './mobile.c
     SubstitutesModule,
     TransportModule,
     TrackingModule,
+    AchievementsModule,
+    ExamsModule,
+    FeesModule,
   ],
   controllers: [
     MobileParentChildController,
     MobileTeacherController,
     MobileParentAttendanceController,
     MobileTeacherAttendanceController,
+    MobileTeacherAppController,
+    MobileParentAchievementsController,
   ],
-  providers: [MobileAccessService],
+  providers: [MobileAccessService, TeacherAppService],
+  exports: [MobileAccessService],
 })
 export class MobileModule {}

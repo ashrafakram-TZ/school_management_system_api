@@ -157,6 +157,15 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 | `ROUTE_EXISTS`, `ROUTE_IN_USE`, `STOP_IN_USE` | 409 | Route code taken, or students still use the route or stop |
 | `BUS_FULL` | 409 | More students than the bus has seats |
 | `TELEMATICS_UNAVAILABLE` | 503 | Bus tracking service is down; try again in a minute |
+| `PAYMENT_EXCEEDS_BALANCE`, `DISCOUNT_TOO_HIGH`, `NO_PLAN_FOR_INSTALLMENT` | 400 | Fees: the amount is more than the invoice balance, the discount goes below what is paid, or no plan has that installment |
+| `INVOICE_PAID`, `INVOICE_CANCELLED`, `INVOICE_HAS_PAYMENTS` | 409 | Fees: nothing left to pay, the invoice is cancelled, or it has payments and cannot be cancelled |
+| `FEE_HEAD_EXISTS`, `TRANSPORT_HEAD_EXISTS`, `FEE_HEAD_IN_USE` | 409 | Fees: head code taken, a transport head already exists, or the head is on plans or invoices |
+| `INVOICE_NOT_FOUND`, `RECEIPT_NOT_FOUND`, `FEE_HEAD_NOT_FOUND` | 404 | Fees: not found or in another school (or another child for parents) |
+| `EXAM_NOT_FOUND`, `SECTION_NOT_IN_EXAM`, `SUBJECT_NOT_IN_EXAM`, `CLASS_NOT_IN_EXAM` | 404 | Exams: the exam, or this section or subject in it, does not exist |
+| `NOT_YOUR_SUBJECT` | 403 | Staff app: the teacher neither teaches this subject in the section nor is its class teacher |
+| `EXAM_PUBLISHED` | 409 | Results are out: teachers can no longer change marks and the exam cannot be deleted |
+| `EXAM_EXISTS`, `CLASS_HAS_MARKS`, `SUBJECT_HAS_MARKS`, `MARKS_ABOVE_MAX` | 409 | Exam name taken this year, or the change would lose or invalidate marks already entered |
+| `CLASS_HAS_NO_SUBJECTS`, `NO_MARKS` | 400 | Pick class subjects in School setup first, or enter marks before publishing |
 
 ## Field conventions
 
@@ -225,6 +234,7 @@ If the school replaces a lost card, the old `qr_token` stops working. Fetch the 
 | `POST /mobile/parent/children/{id}/leaves` | `{ "from_date": "2026-11-10", "to_date": "2026-11-11", "reason": "Fever", "file_id": null }`. Up to 7 days back, 30 days long |
 | `POST /mobile/parent/children/{id}/leaves/{leaveId}/cancel` | Cancel while it is still pending |
 
+| `GET /mobile/parent/children/{id}/achievements` | Achievements the school shares, newest first |
 | `GET /mobile/parent/children/{id}/transport` | Bus card: route, stop with `pickup_time` and `drop_time`, bus registration, driver and attendant with mobile, `monthly_fee`. `null` when the child does not use the bus |
 
 When the class teacher marks the child absent for today's morning attendance, the parent gets a `STUDENT_ABSENT` push (once per day) and an in-app notification. The parent is told again when a leave request is approved or rejected (`LEAVE_STATUS`).
@@ -263,6 +273,9 @@ Sign in as 9000000004 (Priya, class teacher of 6-A) to try it.
 | `GET /mobile/teacher/student-leaves?status=pending` | Class teacher: parent leave requests for my sections (paginated) |
 | `POST /mobile/teacher/student-leaves/{id}/decision` | `{ "status": "rejected", "note": "Please bring the medical note" }` |
 
+| `GET /mobile/teacher/timetable/today` | Home: today's periods in bell order with `kind` (class, substitute, free, break), section, subject, room, `students`, `present` (after the morning attendance) and `is_now`. Tap a section to open its student list |
+| `GET /mobile/teacher/students/{id}/history` | Student full history: profile and parents (with mobile numbers), attendance this year and this month, leave, remarks and discipline (`behaviour`), `achievements`, health, documents and ID card |
+| `GET` / `POST /mobile/teacher/students/{id}/achievements` | List or add an achievement: `{ "title": "District chess", "category": "competition", "level": "district", "position": "1st place", "achieved_on": "2026-10-24" }`. Parents are told |
 | `GET /mobile/teacher/substitutions` | Classes I cover for absent teachers, today and the next 7 days: date, period and time, section, subject, room, who is away, note |
 
 Staff leave status moves `pending_hod` → `pending_principal` → `approved` (or `rejected` at any step). With no HOD in the department it starts at `pending_principal`.
@@ -291,6 +304,86 @@ Connect to the namespace `/live` on the API host with `{ auth: { token: "<access
 - `emit('trip.subscribe', { trip_id })` → ack `{ ok: true }`. A parent can follow only a trip their child rides; a driver only their own bus; admins any trip of their school. Otherwise `{ ok: false, error: "FORBIDDEN" }`.
 - Receive `trip.position` `{ trip_id, position: { lat, lng, speed, heading, recorded_at, source } }` every few seconds and `trip.event` `{ trip_id, type, stop, eta_seconds, end_reason }` for `trip.started`, `stop.approaching`, `stop.arrived`, `stop.departed`, `trip.ended`.
 - When the access token expires the socket is closed with an `error` event: refresh the token and connect again.
+
+## Exams, marks and ranking
+
+Grades (CBSE-like, on the percentage): A1 91+, A2 81+, B1 71+, B2 61+, C1 51+, C2 41+, D 33+, E below. A student fails with any subject below its pass marks or absent. `percent` has one decimal. Ranks use competition ranking on the total (1, 2, 2, 4): equal totals share a rank. A student with any mark not entered is `incomplete`, has `percent`, `grade` and ranks `null`, and is not ranked. `result` is `pass`, `fail` or `incomplete`.
+
+### Staff app (Teacher, HOD, Principal)
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/teacher/exams` | Exams this year with my sections and the subjects I can enter (class teacher: every subject), each with `entered` / `total` |
+| `GET /mobile/teacher/exams/{id}/sections/{sectionId}/marks?subject_id=4` | Marks sheet in roll order: `marks`, `is_absent`, `entered`; `editable` is false once results are published |
+| `PUT /mobile/teacher/exams/{id}/sections/{sectionId}/marks?subject_id=4` | `{ "items": [{ "student_id": 12, "marks": 78.5, "is_absent": false }] }`. Marks 0 to max marks; `is_absent: true` saves an absence; `marks: null` with `is_absent: false` clears. Some or all students. `400 VALIDATION_FAILED` with `errors[].field` `items.N.marks`; `403 NOT_YOUR_SUBJECT`; `409 EXAM_PUBLISHED` |
+| `GET /mobile/teacher/sections/{id}/ranking?exam_id=1` | Students by rank. Without `exam_id`: the latest published exam of the section's class; `exam` is `null` when there is none |
+
+```json
+{
+  "exam": { "id": 1, "name": "Quarterly exam", "status": "published", "start_date": "2026-09-14", "end_date": "2026-09-24", "published_at": "2026-10-03T10:30:00.000+05:30" },
+  "section": { "id": 8, "name": "6 - A", "class_id": 8, "class_name": "6", "section_name": "A" },
+  "rows": [
+    { "rank": 1, "student_id": 12, "full_name": "Janani Bala", "roll_no": 7, "total": 629, "max_total": 700, "percent": 89.9, "grade": "A2", "result": "pass", "class_rank": 2 },
+    { "rank": 6, "student_id": 8, "full_name": "Bharath Kumar", "roll_no": 2, "total": 465, "max_total": 700, "percent": 66.4, "grade": "B2", "result": "pass", "class_rank": 10 },
+    { "rank": 6, "student_id": 9, "full_name": "Dharshini Ravi", "roll_no": 4, "total": 465, "max_total": 700, "percent": 66.4, "grade": "B2", "result": "pass", "class_rank": 10 }
+  ]
+}
+```
+
+### Parent app
+
+`GET /mobile/parent/children/{id}/results` lists the child's published results, newest first: `exam`, `class_name`, `section_name`, `total`, `max_total`, `percent`, `grade`, `result`, `section_rank` of `section_size`, `class_rank` of `class_size`, and `subjects[]` with `name`, `code`, `max_marks`, `pass_marks`, `marks`, `is_absent`, `passed`. When the school publishes results the parent gets `RESULT_PUBLISHED` (push and in-app; `exam`, `student`, `percent`, `grade`, `rank` like `2/15`).
+
+### Admin web
+
+`/admin/exams` (list, create with `class_ids`, `PATCH`, `DELETE` draft only), `/admin/exams/{id}/subjects` (`GET`, `PUT` the full list of papers), `/admin/exams/{id}/sections/{sectionId}/marks?subject_id=` (`GET`, `PUT`), `/admin/exams/{id}/sections/{sectionId}/results`, `/admin/exams/{id}/classes/{classId}/toppers?limit=3`, `/admin/exams/{id}/toppers` (top 3 of every class), `POST /admin/exams/{id}/publish` and `/admin/students/{id}/results`. Permissions `exams.view` (Principal, AO) and `exams.manage` (AO).
+
+## Fees and payment status
+
+A student's fee `status` is one of:
+
+| `status` | Meaning |
+|---|---|
+| `paid` | Nothing left to pay (also when nothing is billed yet; `total` is then 0) |
+| `partly_paid` | Something is paid, a balance is left, nothing is past its due date |
+| `due` | A balance is left, nothing is paid, nothing is past its due date |
+| `overdue` | Some balance is past its due date (the due date itself is not overdue) |
+
+Every fee summary also has `total`, `paid`, `balance`, `overdue_amount`, `next_due_date` (the next unpaid due date, or the oldest overdue one) and `last_payment` `{ date, amount }` or `null`. Invoices have `status` `unpaid`, `partly_paid`, `paid` or `cancelled`, plus `is_overdue` and `days_overdue`. Amounts are rupees as numbers with up to 2 decimals.
+
+### Staff app (class teacher, read-only)
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/teacher/sections/{id}/fees` | Section roster with each student's fee `status`, `balance`, `next_due_date`, `overdue_amount`, `last_payment`, plus `counts` per status. Only the class teacher of the section; others get `403 NOT_CLASS_TEACHER` |
+| `GET /mobile/teacher/students/{id}/fees` | One student's summary with invoices and payments (same shape as the parent call) |
+
+```json
+{
+  "section_id": 8,
+  "class_section": "6 - A",
+  "counts": { "paid": 2, "partly_paid": 3, "due": 2, "overdue": 2 },
+  "overdue_amount": 25440,
+  "students": [
+    { "student_id": 10, "full_name": "Gowtham Raja", "admission_no": "TZMS-2026-0002", "roll_no": 5, "photo_file_id": null,
+      "status": "overdue", "total": 32400, "paid": 0, "balance": 32400, "overdue_amount": 18400,
+      "next_due_date": "2026-10-03", "last_payment": null }
+  ]
+}
+```
+
+### Parent app
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/parent/children/{id}/fees` | Fee card and history: status, totals, `invoices` (each with `lines` such as tuition, books and transport, and its `payments`) and every `payment` newest first |
+| `GET /mobile/parent/children/{id}/fees/receipts/{paymentId}` | Receipt PDF (`Content-Disposition: attachment`) |
+
+Parents get `FEE_DUE` (category `fees`) when the school raises an invoice, and `FEE_OVERDUE` at 08:00 for each overdue invoice, at most once every 7 days. SMS is sent only if the push does not reach the phone.
+
+### Admin web
+
+`/admin/fees/heads` (CRUD; one transport head), `/admin/fees/plans` and `/admin/fees/plans/{classId}` (`GET`, `PUT` the lines of a class: head, installment, amount, due date), `/admin/fees/installments`, `POST /admin/fees/invoices/generate` `{ class_id?, installment, due_date? }` (safe to run again), `/admin/fees/invoices` (search, `status`, `class_id`, `section_id`, `installment`, `overdue`), `/admin/fees/invoices/{id}`, `PATCH .../discount`, `POST .../cancel`, `POST .../payments`, `/admin/fees/payments` (+ `/summary`, `from`, `to`, `mode`), `/admin/fees/payments/{id}/receipt`, `/admin/fees/insights` and `/admin/students/{id}/fees`. Transport line on an invoice = stop `monthly_fee` × months since the previous installment's due date (the year start for the first one), at least 1. Permissions `fees.view` (Principal, AO) and `fees.manage` (AO).
 
 ## Payslips (every staff app)
 

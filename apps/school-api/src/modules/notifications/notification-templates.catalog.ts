@@ -20,8 +20,12 @@ export const TEMPLATES = {
   LEAVE_APPROVAL_NEEDED: 'LEAVE_APPROVAL_NEEDED',
   SUBSTITUTE_ASSIGNED: 'SUBSTITUTE_ASSIGNED',
   PAYSLIP_READY: 'PAYSLIP_READY',
+  FEE_DUE: 'FEE_DUE',
+  FEE_OVERDUE: 'FEE_OVERDUE',
   FLEET_DOCUMENT_EXPIRY: 'FLEET_DOCUMENT_EXPIRY',
   TRIP_NOT_BOARDED: 'TRIP_NOT_BOARDED',
+  RESULT_PUBLISHED: 'RESULT_PUBLISHED',
+  ACHIEVEMENT_ADDED: 'ACHIEVEMENT_ADDED',
 } as const;
 
 interface TemplateText {
@@ -359,6 +363,46 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
     },
   },
   {
+    code: TEMPLATES.FEE_DUE,
+    category: 'fees',
+    push: true,
+    sms: 'fallback',
+    critical: false,
+    text: {
+      en: {
+        title: 'Fee due for {{student}}',
+        body: '{{installment}} fee of {{amount}} for {{student}} is due on {{due_date}}. Open the app to see the details.',
+        sms_body: 'Dear parent, {{installment}} fee of {{amount}} for {{student}} is due on {{due_date}}. -TAMILZOROUS',
+      },
+      ta: {
+        title: '{{student}} கட்டணம் செலுத்த வேண்டும்',
+        body: '{{student}}-க்கான {{installment}} கட்டணம் {{amount}}, {{due_date}} அன்றுக்குள் செலுத்த வேண்டும். விவரங்களுக்கு ஆப்பைத் திறக்கவும்.',
+        sms_body:
+          'அன்புள்ள பெற்றோரே, {{student}}-க்கான {{installment}} கட்டணம் {{amount}}, {{due_date}} அன்றுக்குள் செலுத்த வேண்டும். -TAMILZOROUS',
+      },
+    },
+  },
+  {
+    code: TEMPLATES.FEE_OVERDUE,
+    category: 'fees',
+    push: true,
+    sms: 'fallback',
+    critical: false,
+    text: {
+      en: {
+        title: 'Fee overdue for {{student}}',
+        body: '{{amount}} for {{student}} was due on {{due_date}} and is still unpaid. Please pay at the school office.',
+        sms_body: 'Dear parent, {{amount}} fee for {{student}} was due on {{due_date}} and is unpaid. -TAMILZOROUS',
+      },
+      ta: {
+        title: '{{student}} கட்டணம் நிலுவையில் உள்ளது',
+        body: '{{student}}-க்கான {{amount}} கட்டணம் {{due_date}} அன்று செலுத்த வேண்டியது, இன்னும் செலுத்தப்படவில்லை. பள்ளி அலுவலகத்தில் செலுத்தவும்.',
+        sms_body:
+          'அன்புள்ள பெற்றோரே, {{student}}-க்கான {{amount}} கட்டணம் {{due_date}} முதல் நிலுவையில் உள்ளது. -TAMILZOROUS',
+      },
+    },
+  },
+  {
     code: TEMPLATES.FLEET_DOCUMENT_EXPIRY,
     category: 'transport',
     push: true,
@@ -378,6 +422,25 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
     },
   },
   {
+    code: TEMPLATES.ACHIEVEMENT_ADDED,
+    category: 'system',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: 'Well done, {{student}}!',
+        body: '{{student}}: {{title}} ({{level}} level){{position}}.',
+        sms_body: null,
+      },
+      ta: {
+        title: 'வாழ்த்துகள், {{student}}!',
+        body: '{{student}}: {{title}} ({{level}} அளவில்){{position}}.',
+        sms_body: null,
+      },
+    },
+  },
+  {
     code: TEMPLATES.TRIP_NOT_BOARDED,
     category: 'transport',
     push: true,
@@ -392,6 +455,25 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
       ta: {
         title: '{{section}} வகுப்பில் {{count}} பேர் பேருந்தில் ஏறவில்லை',
         body: 'இன்று காலை {{bus}} பேருந்தில் இல்லை: {{names}}. முதல் பாடவேளைக்கு முன் சரிபார்க்கவும்.',
+        sms_body: null,
+      },
+    },
+  },
+  {
+    code: TEMPLATES.RESULT_PUBLISHED,
+    category: 'system',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: '{{exam}} results: {{student}}',
+        body: '{{student}} scored {{percent}}% (grade {{grade}}) in the {{exam}}. Class rank {{rank}}. Open the app for subject marks.',
+        sms_body: null,
+      },
+      ta: {
+        title: '{{exam}} முடிவுகள்: {{student}}',
+        body: '{{exam}} தேர்வில் {{student}} {{percent}}% மதிப்பெண் (தரம் {{grade}}) பெற்றுள்ளார். வகுப்பு தரவரிசை {{rank}}. பாட வாரியான மதிப்பெண்களுக்கு செயலியைத் திறக்கவும்.',
         sms_body: null,
       },
     },

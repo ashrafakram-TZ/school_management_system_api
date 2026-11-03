@@ -8,10 +8,12 @@ import { DigitalIdDto } from '../student-lifecycle/dto/lifecycle.dto';
 import { StudentLifecycleService } from '../student-lifecycle/student-lifecycle.service';
 import { BehaviourInputDto, BehaviourNoteDto, HealthDto, StudentDocumentDto } from '../student-records/dto/records.dto';
 import { StudentRecordsService } from '../student-records/student-records.service';
-import { StudentDetailDto, StudentListItemDto } from '../students/dto/student-response.dto';
+import { StudentDetailDto } from '../students/dto/student-response.dto';
 import { StudentsService } from '../students/students.service';
 import { ChildCardDto } from './dto/mobile.dto';
+import { RosterStudentDto } from './dto/teacher-app.dto';
 import { MobileAccessService } from './mobile-access.service';
+import { TeacherAppService } from './teacher-app.service';
 
 @ApiTags('Mobile · Parent')
 @ApiBearerAuth()
@@ -72,6 +74,7 @@ export class MobileTeacherController {
     private readonly assignments: AssignmentsService,
     private readonly students: StudentsService,
     private readonly records: StudentRecordsService,
+    private readonly teacherApp: TeacherAppService,
   ) {}
 
   @Get('classes')
@@ -84,21 +87,18 @@ export class MobileTeacherController {
   }
 
   @Get('sections/:id/students')
-  @ApiOperation({ summary: 'Class roster in roll number order' })
-  @ApiEnvelope(StudentListItemDto, { isArray: true })
+  @ApiOperation({
+    summary: 'Class roster in roll number order, with fee status for the class teacher',
+    description:
+      'fee is filled only for the class teacher of the section (paid, partly_paid, due, overdue with balance and next due date). For rank order use GET /mobile/teacher/sections/{id}/ranking.',
+  })
+  @ApiEnvelope(RosterStudentDto, { isArray: true })
   @ApiErrors(HttpStatus.NOT_FOUND)
   async roster(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
     const schoolId = this.access.teacherSchool(user);
     await this.assignments.assertTeachesSection(schoolId, user.id, id);
-    const page = await this.students.list(schoolId, {
-      section_id: id,
-      status: 'active',
-      sort: 'roll_no',
-      order: 'asc',
-      page: 1,
-      limit: 100,
-    });
-    return page.items;
+    const classTeacher = (await this.access.classTeacherSections(schoolId, user.id)).includes(id);
+    return this.teacherApp.roster(schoolId, id, classTeacher);
   }
 
   @Get('students/:id')

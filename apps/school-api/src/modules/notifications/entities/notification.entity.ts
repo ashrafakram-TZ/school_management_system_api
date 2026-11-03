@@ -25,6 +25,7 @@ export const CATEGORIES = [
   'chat',
   'meeting',
   'alert',
+  'fees',
 ] as const;
 export type NotificationCategory = (typeof CATEGORIES)[number];
 
