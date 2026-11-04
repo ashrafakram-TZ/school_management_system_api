@@ -38,6 +38,6 @@ import { StudentsService } from './students.service';
     MobileParentController,
   ],
   providers: [StudentsService, GuardiansService, AdmissionsService],
-  exports: [StudentsService, GuardiansService],
+  exports: [StudentsService, GuardiansService, AdmissionsService],
 })
 export class StudentsModule {}

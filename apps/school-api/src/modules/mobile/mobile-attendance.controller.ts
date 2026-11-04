@@ -10,6 +10,7 @@ import {
   Post,
   Put,
   Query,
+  Version,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiEnvelope, ApiErrors, AuthUser, CurrentUser, RequireRoles, ResponseMessage } from '@app/common';
@@ -42,7 +43,7 @@ import { StaffLeaveService } from '../staff-leave/staff-leave.service';
 import { MySubstitutionDto } from '../substitutes/dto/substitute.dto';
 import { SubstitutesService } from '../substitutes/substitutes.service';
 import { TeacherTimetableDto } from '../timetable/dto/timetable.dto';
-import { ChildBusDto } from '../tracking/dto/tracking.dto';
+import { ChildBusDto, ChildBusV2Dto } from '../tracking/dto/tracking.dto';
 import { TripsService } from '../tracking/trips.service';
 import { ParentTransportDto } from '../transport/dto/transport.dto';
 import { RoutesService } from '../transport/routes.service';
@@ -75,6 +76,18 @@ export class MobileParentAttendanceController {
   @ApiEnvelope(ChildBusDto)
   async bus(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
     return this.tracking.childBus(await this.access.childSchool(user.id, id), id);
+  }
+
+  @Get('bus')
+  @Version('2')
+  @ApiOperation({
+    summary: 'Live bus for this child with the stop timeline (v2: everything in v1 plus timeline)',
+    description:
+      'Same access and fields as v1, plus boarding_status (not_yet, boarded, alighted), last_position_at and timeline. timeline.source is live while a trip runs: every stop in travel order with planned time, status (pending, approaching, arrived, departed, skipped), eta_seconds and eta_at for upcoming stops, arrived_at and departed_at for past ones, is_child_stop and minutes_late. With no trip running, source is scheduled: the next planned trip for the child’s route with its planned stops. null when the child does not use the bus.',
+  })
+  @ApiEnvelope(ChildBusV2Dto)
+  async busV2(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.tracking.childBusWithTimeline(await this.access.childSchool(user.id, id), id);
   }
 
   @Get('transport')

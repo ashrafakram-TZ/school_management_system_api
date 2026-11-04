@@ -16,6 +16,7 @@ import {
 } from '../entities/transport-trip.entity';
 import { TRIP_EVENT_TYPES, TripEventType } from '../entities/trip-event.entity';
 import { CHILD_BUS_STATUSES, ChildBusStatus } from '../tracking.logic';
+import { BOARDING_STATUSES, BoardingStatus, TIMELINE_SOURCES, TimelineSource } from '../bus-timeline.logic';
 
 export class StartTripDto {
   @ApiProperty({ example: 1, description: 'A route run by your bus' })
@@ -378,4 +379,96 @@ export class ChildBusDto {
     description: 'The child’s latest scan on this trip (boarded or alighted); null before the first scan',
   })
   boarding: ChildBoardingDto | null;
+}
+
+export class TimelineStopDto {
+  @ApiProperty({ example: 12 })
+  stop_id: number;
+
+  @ApiProperty({ example: 'Anna Nagar Roundtana' })
+  name: string;
+
+  @ApiProperty({ example: 3, description: 'Stop number on the route' })
+  sequence: number;
+
+  @ApiProperty({ nullable: true, type: String, example: '07:25', description: 'Planned time for this trip kind' })
+  planned_time: string | null;
+
+  @ApiProperty({ nullable: true, type: String, example: '2026-11-04T07:25:00.000+05:30' })
+  planned_at: Date | null;
+
+  @ApiProperty({ enum: STOP_STATUSES, example: 'pending' })
+  status: StopStatus;
+
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    example: 540,
+    description: 'Upcoming stops only (pending, approaching): seconds from the last bus position',
+  })
+  eta_seconds: number | null;
+
+  @ApiProperty({ nullable: true, type: String, example: '2026-11-04T07:31:00.000+05:30' })
+  eta_at: Date | null;
+
+  @ApiProperty({ nullable: true, type: String, example: null, description: 'Past stops only' })
+  arrived_at: Date | null;
+
+  @ApiProperty({ nullable: true, type: String, example: null, description: 'Past stops only' })
+  departed_at: Date | null;
+
+  @ApiProperty({ example: true, description: 'true for the child’s own stop' })
+  is_child_stop: boolean;
+
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    example: 6,
+    description:
+      'Minutes behind the planned time (negative = early): actual arrival for past stops, ETA for upcoming ones; null when unknown or skipped',
+  })
+  minutes_late: number | null;
+}
+
+export class ChildBusTimelineDto {
+  @ApiProperty({
+    enum: TIMELINE_SOURCES,
+    example: 'live',
+    description: 'live: the trip running now; scheduled: no trip is running, this is the next planned trip',
+  })
+  source: TimelineSource;
+
+  @ApiProperty({ nullable: true, type: Number, example: 41, description: 'null for a scheduled trip' })
+  trip_id: number | null;
+
+  @ApiProperty({ enum: TRIP_KINDS, example: 'pickup' })
+  kind: TripKind;
+
+  @ApiProperty({ example: '2026-11-04' })
+  trip_date: string;
+
+  @ApiProperty({ example: 12 })
+  child_stop_id: number;
+
+  @ApiProperty({ type: [TimelineStopDto], description: 'Every stop in travel order' })
+  stops: TimelineStopDto[];
+}
+
+export class ChildBusV2Dto extends ChildBusDto {
+  @ApiProperty({
+    enum: BOARDING_STATUSES,
+    example: 'boarded',
+    description: 'not_yet, boarded or alighted on today’s trip',
+  })
+  boarding_status: BoardingStatus;
+
+  @ApiProperty({ nullable: true, type: String, example: '2026-11-04T07:22:41.000+05:30' })
+  last_position_at: string | null;
+
+  @ApiProperty({
+    type: ChildBusTimelineDto,
+    nullable: true,
+    description: 'Stop timeline of the running trip, or of the next scheduled trip when none is running',
+  })
+  timeline: ChildBusTimelineDto | null;
 }

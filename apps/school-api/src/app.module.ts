@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ALL_CONFIGS } from './config/configuration';
 import { validate } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AccessModule } from './modules/access/access.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -62,6 +63,7 @@ import { UsersModule } from './modules/users/users.module';
     ExamsModule,
     TransportModule,
     TrackingModule,
+    DashboardModule,
     AchievementsModule,
     MeetingsModule,
     MobileModule,

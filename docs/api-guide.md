@@ -217,6 +217,22 @@ The admin web sets it in School setup → School profile: `POST /files` (purpose
 
 Substitutes: `POST /admin/substitutes`, `POST /admin/substitutes/auto` and `DELETE /admin/substitutes/{id}` need `substitutes.manage` (AO only; others get `403 FORBIDDEN` and can still view the board). A substitute is set for one date and one period, only for a teacher who is on approved leave or absent that day, and only from the teachers who are free in that period (`GET /admin/substitutes/free`); anyone else returns `409 SUBSTITUTE_BUSY`.
 
+### Dashboard (admin web)
+
+`GET /admin/dashboard` returns the home screen in one call for every admin-web role. Each section is present only when the caller has its permission and is `null` otherwise:
+
+| Section | Permission | Fields |
+|---|---|---|
+| `students` | `students.view` | `total` (active), `joined_this_month`, `applications_waiting`, `approved_not_enrolled` |
+| `staff` | `staff.view` | `total`, `teachers`, `need_attention` |
+| `attendance` | `attendance.view` | `students: { working_day, marked_sections, total_sections, present, absent, on_leave, percent }`, `staff: { total, checked_in, late, on_leave, absent, percent }` |
+| `buses` | `fleet.view` | `telematics_available`, `total`, `with_tracker`, `live`, `moving`, `offline` (the last three are `null` when bus tracking is down; the call still returns 200) |
+| `alerts` | `fleet.view` | `open`, `sos_open`, `high_open` |
+| `fees` | `fees.view` | `academic_year`, `due_amount`, `overdue_amount`, `overdue_students`, `todays_collection` (`null` with no current academic year) |
+| `exams` | `exams.view` | `total`, `upcoming`, `in_progress`, `published` for the current year |
+
+`date` is today in the school time zone. Percentages have one decimal and are `null` when there is nothing to count. Student `percent` is the attendance board's figure (half day counts half); staff `percent` is `checked_in / (total - on_leave)`.
+
 ### Combine class (instead of a proxy)
 
 When no teacher should take the period, the AO can send the students to other sections of the same class that have a period running at that time with a teacher in:
@@ -278,6 +294,17 @@ If the school replaces a lost card, the old `qr_token` stops working. Fetch the 
 
 When the class teacher marks the child absent for today's morning attendance, the parent gets a `STUDENT_ABSENT` push (once per day) and an in-app notification. The parent is told again when a leave request is approved or rejected (`LEAVE_STATUS`).
 
+### Parent app preview (admin web)
+
+The admin web shows the parent app for any student in a phone frame. It never signs in as the parent: these read-only calls (`students.view`) use the same services as the parent endpoints. Attendance, results and fees come from the existing admin calls (`/admin/attendance/students/{id}?month=`, `/admin/students/{id}/results`, `/admin/students/{id}/fees`).
+
+| Call | Same data as |
+|---|---|
+| `GET /admin/students/{id}/parent-view` | `{ parent, child, today }`: `child` is the parent's child card, `today` the attendance badge. `parent` and `child` are `null` when no parent of the student has an app login |
+| `GET /admin/students/{id}/parent-view/bus` | `GET /mobile/parent/children/{id}/bus` |
+| `GET /admin/students/{id}/parent-view/achievements` | `GET /mobile/parent/children/{id}/achievements` |
+| `GET /admin/students/{id}/parent-view/notifications?page=1&limit=10` | The primary parent's `GET /me/notifications` |
+
 ## Staff app: teachers
 
 Teacher, HOD and Principal roles. Everything is limited to the teacher's own sections this year; other sections return `403 NOT_YOUR_SECTION`.
@@ -338,6 +365,16 @@ Biometric machines push punches to `POST /integrations/biometric/punches` with h
 
 ### Parent app
 `GET /mobile/parent/children/{id}/bus` returns `status` (`no_trip`, `on_the_way`, `approaching`, `at_stop`, `passed`, `trip_ended`), a ready `headline` ("Bus is 4 min away from Thirumangalam metro"), the child's `stop`, `eta_seconds`, `position` (live, or the bus's last known position with `position_stale`), `trip` and `boarding` (the child's latest scan on that trip: `action`, `method`, `stop`, `occurred_at`; null before the first scan). It is `null` when the child does not use the bus.
+
+**v2 with the stop timeline.** `GET /api/v2/mobile/parent/children/{id}/bus` is the same call with the same access rules; **v1 stays unchanged** and keeps working. v2 returns every v1 field plus:
+
+| Field | Meaning |
+|---|---|
+| `boarding_status` | `not_yet`, `boarded` or `alighted` on today's trip |
+| `last_position_at` | Time of the bus's last position, or `null` |
+| `timeline` | `{ source, trip_id, kind, trip_date, child_stop_id, stops }`, or `null` when the route has no stops or no trip is planned in the next 14 days |
+
+`timeline.source` is `live` while a trip runs (`trip_id` is that trip) and `scheduled` when none is running: then it is the next planned trip for the child's route and mode (today's pickup or drop if it has not run and its time has not passed, otherwise the next working day), `trip_id` is `null` and every stop is `pending`. Each item of `stops`, in travel order: `stop_id`, `name`, `sequence`, `planned_time` ("07:25"), `planned_at`, `status` (`pending`, `approaching`, `arrived`, `departed`, `skipped`), `eta_seconds` and `eta_at` (upcoming stops only, counted from the last bus position), `arrived_at` and `departed_at` (past stops only), `is_child_stop`, and `minutes_late` (minutes behind `planned_time`, negative when early: from the arrival for past stops, from the ETA for upcoming ones; `null` when unknown or skipped).
 
 Parents are told automatically: **Bus has started** (whole route), **Bus is N min away** (only parents of that stop, before the bus arrives; SMS if the push does not reach the phone) and **Bus reached {stop}**, plus **{child} boarded the bus** and **{child} got off the bus** when the attendant scans the ID card.
 

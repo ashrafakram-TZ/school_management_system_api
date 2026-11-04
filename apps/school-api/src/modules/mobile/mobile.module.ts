@@ -20,6 +20,8 @@ import { MobileParentAttendanceController, MobileTeacherAttendanceController } f
 import { MobileParentChildController, MobileTeacherController } from './mobile.controller';
 import { MobileParentAchievementsController, MobileTeacherAppController } from './mobile-teacher-app.controller';
 import { BannerService } from './banner.service';
+import { ParentPreviewController } from './parent-preview.controller';
+import { ParentPreviewService } from './parent-preview.service';
 import { TeacherAppService } from './teacher-app.service';
 
 @Module({
@@ -49,8 +51,9 @@ import { TeacherAppService } from './teacher-app.service';
     MobileParentAchievementsController,
     MobileTeacherMeetingsController,
     MobileParentMeetingsController,
+    ParentPreviewController,
   ],
-  providers: [MobileAccessService, TeacherAppService, BannerService],
+  providers: [MobileAccessService, TeacherAppService, BannerService, ParentPreviewService],
   exports: [MobileAccessService],
 })
 export class MobileModule {}

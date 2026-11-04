@@ -4,6 +4,7 @@ import { DataSource, In, Repository } from 'typeorm';
 import { AppException, AuthUser, paginate, Paginated } from '@app/common';
 import { appConfig, AppConfig } from '../../config/configuration';
 import { todayIn } from '../../shared/dates';
+import { addDays, holidaySet, WEEKLY_OFF, weekday } from '../../shared/school-days';
 import { TelematicsClient } from '../fleet/telematics.client';
 import { RouteStop } from '../transport/entities/route-stop.entity';
 import { StudentTransport } from '../transport/entities/student-transport.entity';
@@ -12,6 +13,8 @@ import { Vehicle } from '../transport/entities/vehicle.entity';
 import { BoardingDto, ChildBoardingDto } from './dto/boarding.dto';
 import {
   ChildBusDto,
+  ChildBusTimelineDto,
+  ChildBusV2Dto,
   DriverTodayDto,
   PhonePositionDto,
   RiderDto,
@@ -24,6 +27,7 @@ import {
 import { TransportTrip, TripKind, TripPosition, TripStop } from './entities/transport-trip.entity';
 import { TripBoarding } from './entities/trip-boarding.entity';
 import { TripEvent } from './entities/trip-event.entity';
+import { boardingStatus, liveTimeline, nextScheduledTrip, plannedTimeline, zoneOffset } from './bus-timeline.logic';
 import { childBusStatus, minutesFrom, orderStops, ridesOn } from './tracking.logic';
 
 interface TelematicsStop {
@@ -284,6 +288,94 @@ export class TripsService {
   }
 
   async childBus(schoolId: number, studentId: number): Promise<ChildBusDto | null> {
+    return (await this.childBusState(schoolId, studentId))?.bus ?? null;
+  }
+
+  async childBusWithTimeline(schoolId: number, studentId: number): Promise<ChildBusV2Dto | null> {
+    const state = await this.childBusState(schoolId, studentId);
+    if (!state) return null;
+    const { bus, trip, assignment } = state;
+    const now = new Date();
+    const offset = zoneOffset(this.app.timeZone, now);
+    const timeline =
+      trip?.status === 'active'
+        ? {
+            source: 'live' as const,
+            trip_id: trip.id,
+            kind: trip.kind,
+            trip_date: trip.trip_date,
+            child_stop_id: assignment.stop_id,
+            stops: liveTimeline(trip.stops, {
+              childStopId: assignment.stop_id,
+              tripDate: trip.trip_date,
+              offset,
+              positionAt: trip.last_position ? new Date(trip.last_position.recorded_at) : null,
+              now,
+            }),
+          }
+        : await this.scheduledTimeline(schoolId, assignment, offset, now);
+    return {
+      ...bus,
+      boarding_status: boardingStatus(bus.boarding?.action),
+      last_position_at: bus.position ? String(bus.position.recorded_at) : null,
+      timeline,
+    };
+  }
+
+  private async scheduledTimeline(
+    schoolId: number,
+    assignment: StudentTransport,
+    offset: string,
+    now: Date,
+  ): Promise<ChildBusTimelineDto | null> {
+    const today = todayIn(this.app.timeZone, now);
+    const [stops, ran, holidays] = await Promise.all([
+      this.dataSource.getRepository(RouteStop).find({ where: { route_id: assignment.route_id } }),
+      this.trips.find({ where: { route_id: assignment.route_id, trip_date: today }, select: { kind: true } }),
+      holidaySet(this.dataSource.manager, schoolId, today, addDays(today, 14)),
+    ]);
+    if (!stops.length) return null;
+    const latest = (times: (string | null)[]) =>
+      times
+        .filter((time): time is string => Boolean(time))
+        .sort()
+        .pop() ?? null;
+    const next = nextScheduledTrip({
+      mode: assignment.mode,
+      today,
+      nowTime: new Intl.DateTimeFormat('en-GB', {
+        timeZone: this.app.timeZone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).format(now),
+      ranToday: ran.map((trip) => trip.kind),
+      lastPlanned: {
+        pickup: latest(stops.map((stop) => stop.pickup_time)),
+        drop: latest(stops.map((stop) => stop.drop_time)),
+      },
+      isDayOff: (date) => WEEKLY_OFF.includes(weekday(date)) || holidays.has(date),
+    });
+    if (!next) return null;
+    return {
+      source: 'scheduled',
+      trip_id: null,
+      kind: next.kind,
+      trip_date: next.trip_date,
+      child_stop_id: assignment.stop_id,
+      stops: plannedTimeline(stops, {
+        kind: next.kind,
+        childStopId: assignment.stop_id,
+        tripDate: next.trip_date,
+        offset,
+      }),
+    };
+  }
+
+  private async childBusState(
+    schoolId: number,
+    studentId: number,
+  ): Promise<{ bus: ChildBusDto; trip: TransportTrip | null; assignment: StudentTransport } | null> {
     const assignment = await this.dataSource
       .getRepository(StudentTransport)
       .findOneBy({ school_id: schoolId, student_id: studentId });
@@ -327,7 +419,7 @@ export class TripsService {
     const status = childBusStatus(trip, assignment.stop_id);
     const boarding = trip ? await this.childBoarding(trip, studentId) : null;
     const eta = status === 'on_the_way' || status === 'approaching' ? (stopState?.eta_seconds ?? null) : null;
-    return {
+    const bus: ChildBusDto = {
       status,
       headline: this.headline(status, eta, stop?.name ?? ''),
       route: { id: route.id, name: route.name },
@@ -341,6 +433,7 @@ export class TripsService {
       position_stale: position ? Date.now() - new Date(position.recorded_at).getTime() > STALE_MS : true,
       boarding,
     };
+    return { bus, trip, assignment };
   }
 
   async riders(trip: TransportTrip): Promise<RiderDto[]> {

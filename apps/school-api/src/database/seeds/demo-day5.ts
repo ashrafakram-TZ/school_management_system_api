@@ -14,7 +14,7 @@ import { User } from '../../modules/users/entities/user.entity';
 import { todayIn } from '../../shared/dates';
 import { addDays, weekday } from '../../shared/school-days';
 
-const SALARY_BY_DESIGNATION: Record<string, [number, number, boolean]> = {
+export const SALARY_BY_DESIGNATION: Record<string, [number, number, boolean]> = {
   Principal: [68000, 6000, false],
   'Administrative Officer': [42000, 3000, false],
   'Transport In-charge': [26000, 2000, false],
@@ -22,6 +22,10 @@ const SALARY_BY_DESIGNATION: Record<string, [number, number, boolean]> = {
   'BT Assistant': [30000, 3000, false],
   'Physical Education Teacher': [26000, 2000, false],
   'Computer Instructor': [24000, 2000, false],
+  'Secondary Grade Teacher': [25000, 2000, false],
+  'Art Teacher': [22000, 1500, false],
+  'Special Educator': [26000, 2000, false],
+  'Music Teacher': [22000, 1500, false],
   'Bus Driver': [13000, 1000, true],
   'Bus Attendant': [9500, 500, true],
 };

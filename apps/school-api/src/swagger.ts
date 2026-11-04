@@ -29,6 +29,7 @@ const TAGS: [string, string][] = [
   ['Files', 'Uploads and signed download links'],
   ['Mobile · Parent', 'Parent app screens'],
   ['Mobile · Teacher', 'Staff app screens for teachers'],
+  ['Admin · Dashboard', 'Home screen in one call: counts per section, gated by the caller’s permissions'],
   ['Admin · Students', 'Students, class placement, guardians, roll numbers, Excel import'],
   ['Admin · Student records', 'Documents with verification, health and vaccinations, behaviour notes'],
   [

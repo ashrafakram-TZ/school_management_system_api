@@ -6,6 +6,7 @@ import { seedDemoDay4 } from './demo-day4';
 import { seedDemoDay5 } from './demo-day5';
 import { seedDemoExams } from './demo-exams';
 import { seedDemoFees } from './demo-fees';
+import { seedDemoFinal } from './demo-final';
 import { seedDemoStaff } from './demo-staff';
 import { runSeed, seedCatalog, upsertUser } from './seed-helpers';
 
@@ -37,4 +38,5 @@ runSeed('Demo seed', async (manager) => {
   await seedDemoDay5(manager, school);
   await seedDemoExams(manager, school);
   await seedDemoFees(manager, school);
+  await seedDemoFinal(manager, school);
 });
