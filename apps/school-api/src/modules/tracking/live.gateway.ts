@@ -12,6 +12,8 @@ import { AppException, AuthUser } from '@app/common';
 import { PERMISSIONS, ROLES } from '../access/access.catalog';
 import { AccessService } from '../access/access.service';
 import { TokenService } from '../auth/token.service';
+import { BoardingDto } from './dto/boarding.dto';
+import { AlertDto } from './dto/fleet-alert.dto';
 import { TransportTrip } from './entities/transport-trip.entity';
 import { TripAccessService } from './trip-access.service';
 
@@ -133,6 +135,29 @@ export class LiveGateway implements OnGatewayInit {
     };
     this.server?.to(tripRoom(trip.id)).to(fleetRoom(trip.school_id)).emit('trip.event', message);
     this.logger.debug(`trip ${trip.id} event ${JSON.stringify(payload).slice(0, 120)}`);
+  }
+
+  passenger(trip: TransportTrip, boarding: BoardingDto): void {
+    const name = boarding.action === 'boarded' ? 'passenger.boarded' : 'passenger.alighted';
+    const message = {
+      trip_id: trip.id,
+      route_id: trip.route_id,
+      vehicle_id: trip.vehicle_id,
+      boarding_id: boarding.id,
+      student_id: boarding.student_id,
+      action: boarding.action,
+      method: boarding.method,
+      stop: boarding.stop,
+      occurred_at: boarding.occurred_at,
+    };
+    this.server?.to(tripRoom(trip.id)).except(fleetRoom(trip.school_id)).emit(name, message);
+    this.server
+      ?.to(fleetRoom(trip.school_id))
+      .emit(name, { ...message, full_name: boarding.full_name, class_section: boarding.class_section });
+  }
+
+  alert(schoolId: number, name: 'alert.raised' | 'alert.updated', alert: AlertDto): void {
+    this.server?.to(fleetRoom(schoolId)).emit(name, alert);
   }
 
   private tokenFrom(socket: Socket): string {

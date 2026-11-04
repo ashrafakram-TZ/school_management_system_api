@@ -2,8 +2,8 @@ import { DataSource, Repository } from 'typeorm';
 import { AuthUser } from '@app/common';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { AchievementsService } from './achievements.service';
-import { StudentAchievement } from './entities/student-achievement.entity';
+import { AchievementsService, rankRows, sportsDetailsError } from './achievements.service';
+import { achievementPoints, StudentAchievement } from './entities/student-achievement.entity';
 
 const actor = { id: 9, school_id: 1 } as AuthUser;
 
@@ -60,5 +60,56 @@ describe('AchievementsService.create', () => {
     const { service, files } = build([]);
     await service.create(1, 12, { ...input, file_id: 77 }, actor);
     expect(files.assertAttachable).toHaveBeenCalledWith(77, 1);
+  });
+});
+
+describe('sports and activities', () => {
+  it('scores level times result', () => {
+    expect(achievementPoints('district', 'winner')).toBe(20);
+    expect(achievementPoints('state', 'participated')).toBe(8);
+    expect(achievementPoints('school', 'runner_up')).toBe(6);
+    expect(achievementPoints('international', 'third_place')).toBe(30);
+  });
+
+  it('saves points and the sports details', async () => {
+    const { service, saved } = build([]);
+    await service.create(
+      1,
+      12,
+      {
+        ...input,
+        category: 'sports',
+        level: 'district',
+        result: 'winner',
+        event_scope: 'inter_school',
+        venue_type: 'outdoor',
+        participation: 'team',
+        team_name: 'U-14 football',
+      },
+      actor,
+    );
+    expect(saved[0]).toMatchObject({ points: 20, event_scope: 'inter_school', team_name: 'U-14 football' });
+  });
+
+  it('drops the team name for an individual entry', async () => {
+    const { service, saved } = build([]);
+    await service.create(1, 12, { ...input, team_name: 'Ignored' }, actor);
+    expect(saved[0]).toMatchObject({ participation: 'individual', team_name: null, result: 'participated', points: 2 });
+  });
+
+  it('needs indoor or outdoor for sports', async () => {
+    expect(sportsDetailsError({ category: 'sports', venue_type: null })).toBe(
+      'Choose indoor or outdoor for a sports achievement',
+    );
+    expect(sportsDetailsError({ category: 'arts', venue_type: null })).toBeNull();
+    const { service } = build([]);
+    await expect(service.create(1, 12, { ...input, category: 'sports' }, actor)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'VALIDATION_FAILED' }),
+    });
+  });
+
+  it('shares a rank on equal points', () => {
+    const ranked = rankRows([{ points: 40 }, { points: 20 }, { points: 20 }, { points: 8 }]);
+    expect(ranked.map((row) => row.rank)).toEqual([1, 2, 2, 4]);
   });
 });

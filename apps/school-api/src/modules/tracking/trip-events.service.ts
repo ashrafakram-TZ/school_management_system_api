@@ -3,9 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AppException } from '@app/common';
 import { appConfig, AppConfig, telematicsConfig, TelematicsConfig } from '../../config/configuration';
+import { VehicleFaultEvent } from '../fleet-ops/fleet-ops.logic';
+import { MaintenanceService } from '../fleet-ops/maintenance.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TransportTrip, TripPosition } from './entities/transport-trip.entity';
 import { TripEvent, TripEventType } from './entities/trip-event.entity';
+import { TelematicsAlertEvent } from './fleet-alerts.logic';
+import { FleetAlertsService } from './fleet-alerts.service';
 import { LiveGateway } from './live.gateway';
 import { applyStopEvent, minutesFrom, signatureValid } from './tracking.logic';
 import { TripsService } from './trips.service';
@@ -31,6 +35,8 @@ export class TripEventsService {
     private readonly tripsService: TripsService,
     private readonly gateway: LiveGateway,
     private readonly notifications: NotificationsService,
+    private readonly alerts: FleetAlertsService,
+    private readonly maintenance: MaintenanceService,
     private readonly dataSource: DataSource,
     @Inject(telematicsConfig.KEY) private readonly config: TelematicsConfig,
     @Inject(appConfig.KEY) private readonly app: AppConfig,
@@ -48,6 +54,12 @@ export class TripEventsService {
       event = JSON.parse(rawBody.toString('utf8')) as TelematicsEvent;
     } catch {
       throw AppException.badRequest('Body is not JSON', 'VALIDATION_FAILED');
+    }
+    if ((event.type as string) === 'alert.raised') {
+      return this.alerts.fromTelematics(event as unknown as TelematicsAlertEvent);
+    }
+    if ((event.type as string) === 'vehicle.fault') {
+      return this.maintenance.fromTelematics(event as unknown as VehicleFaultEvent);
     }
     const trip = await this.tripFor(event);
     if (!trip) return { accepted: false };

@@ -1,9 +1,14 @@
-import { Body, Controller, Get, HttpStatus, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiEnvelope, ApiErrors, AuthUser, CurrentUser, RequireRoles, ResponseMessage } from '@app/common';
 import { ROLES } from '../access/access.catalog';
 import { AchievementsService } from '../achievements/achievements.service';
-import { AchievementDto, AchievementInputDto } from '../achievements/dto/achievement.dto';
+import {
+  AchievementDto,
+  AchievementInputDto,
+  LeaderboardDto,
+  LeaderboardQueryDto,
+} from '../achievements/dto/achievement.dto';
 import { AssignmentsService } from '../staff/assignments.service';
 import { StudentHistoryDto, TodayTimetableDto } from './dto/teacher-app.dto';
 import { MobileAccessService } from './mobile-access.service';
@@ -45,6 +50,30 @@ export class MobileTeacherAppController {
     const schoolId = this.access.teacherSchool(user);
     await this.assignments.assertTeachesStudent(schoolId, user.id, id);
     return this.teacherApp.history(schoolId, id, await this.teacherApp.isClassTeacherOf(schoolId, user.id, id));
+  }
+
+  @Get('sections/:id/activity-ranking')
+  @ApiOperation({
+    summary: 'Students of my section ranked by sports and activity points',
+    description:
+      'Same points as the admin leaderboard. Default: all non-academic achievements this academic year; send category=sports for sports only.',
+  })
+  @ApiEnvelope(LeaderboardDto)
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  async activityRanking(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: LeaderboardQueryDto,
+  ) {
+    const schoolId = this.access.teacherSchool(user);
+    await this.assignments.assertTeachesSection(schoolId, user.id, id);
+    return this.achievements.leaderboard(schoolId, {
+      ...query,
+      category: query.category ?? 'non_academic',
+      section_id: id,
+      class_id: undefined,
+      limit: query.limit ?? 100,
+    });
   }
 
   @Get('students/:id/achievements')

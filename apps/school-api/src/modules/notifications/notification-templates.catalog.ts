@@ -13,6 +13,8 @@ export const TEMPLATES = {
   STUDENT_BOARDED: 'STUDENT_BOARDED',
   STUDENT_ALIGHTED: 'STUDENT_ALIGHTED',
   SOS_ALERT: 'SOS_ALERT',
+  SAFETY_ALERT: 'SAFETY_ALERT',
+  SAFETY_ALERT_HIGH: 'SAFETY_ALERT_HIGH',
   DIARY_POSTED: 'DIARY_POSTED',
   MEETING_REMINDER: 'MEETING_REMINDER',
   CHAT_MESSAGE: 'CHAT_MESSAGE',
@@ -23,6 +25,7 @@ export const TEMPLATES = {
   FEE_DUE: 'FEE_DUE',
   FEE_OVERDUE: 'FEE_OVERDUE',
   FLEET_DOCUMENT_EXPIRY: 'FLEET_DOCUMENT_EXPIRY',
+  VEHICLE_FAULT: 'VEHICLE_FAULT',
   TRIP_NOT_BOARDED: 'TRIP_NOT_BOARDED',
   RESULT_PUBLISHED: 'RESULT_PUBLISHED',
   ACHIEVEMENT_ADDED: 'ACHIEVEMENT_ADDED',
@@ -275,6 +278,44 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
     },
   },
   {
+    code: TEMPLATES.SAFETY_ALERT,
+    category: 'alert',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: '{{kind}}: {{bus}}',
+        body: '{{message}} on {{bus}} at {{time}}. See the alerts centre.',
+        sms_body: null,
+      },
+      ta: {
+        title: '{{kind}}: {{bus}}',
+        body: '{{time}} மணிக்கு {{bus}}-இல் {{message}}. எச்சரிக்கை மையத்தில் பார்க்கவும்.',
+        sms_body: null,
+      },
+    },
+  },
+  {
+    code: TEMPLATES.SAFETY_ALERT_HIGH,
+    category: 'alert',
+    push: true,
+    sms: 'fallback',
+    critical: true,
+    text: {
+      en: {
+        title: 'Urgent {{kind}}: {{bus}}',
+        body: '{{message}} on {{bus}} at {{time}}. Check with the driver now.',
+        sms_body: 'Urgent: {{message}} on {{bus}} at {{time}}. Check with the driver now. -TAMILZOROUS',
+      },
+      ta: {
+        title: 'அவசர எச்சரிக்கை {{kind}}: {{bus}}',
+        body: '{{time}} மணிக்கு {{bus}}-இல் {{message}}. உடனே ஓட்டுநரிடம் விசாரிக்கவும்.',
+        sms_body: 'அவசரம்: {{time}} மணிக்கு {{bus}}-இல் {{message}}. உடனே ஓட்டுநரிடம் விசாரிக்கவும். -TAMILZOROUS',
+      },
+    },
+  },
+  {
     code: TEMPLATES.DIARY_POSTED,
     category: 'diary',
     push: true,
@@ -496,6 +537,25 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
       ta: {
         title: '{{exam}} முடிவுகள்: {{student}}',
         body: '{{exam}} தேர்வில் {{student}} {{percent}}% மதிப்பெண் (தரம் {{grade}}) பெற்றுள்ளார். வகுப்பு தரவரிசை {{rank}}. பாட வாரியான மதிப்பெண்களுக்கு செயலியைத் திறக்கவும்.',
+        sms_body: null,
+      },
+    },
+  },
+  {
+    code: TEMPLATES.VEHICLE_FAULT,
+    category: 'transport',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: 'Engine fault on {{bus}}: {{code}}',
+        body: '{{bus}} reported fault {{code}} ({{fault}}), severity {{severity}}. A maintenance ticket is open in Fleet maintenance.',
+        sms_body: null,
+      },
+      ta: {
+        title: '{{bus}} பேருந்தில் என்ஜின் கோளாறு: {{code}}',
+        body: '{{bus}} பேருந்தில் {{code}} ({{fault}}) கோளாறு கண்டறியப்பட்டது, தீவிரம்: {{severity}}. பராமரிப்பு பகுதியில் ஒரு டிக்கெட் திறக்கப்பட்டுள்ளது.',
         sms_body: null,
       },
     },

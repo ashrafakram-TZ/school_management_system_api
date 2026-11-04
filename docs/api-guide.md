@@ -157,6 +157,11 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 | `ROUTE_EXISTS`, `ROUTE_IN_USE`, `STOP_IN_USE` | 409 | Route code taken, or students still use the route or stop |
 | `BUS_FULL` | 409 | More students than the bus has seats |
 | `TELEMATICS_UNAVAILABLE` | 503 | Bus tracking service is down; try again in a minute |
+| `NOT_ON_THIS_ROUTE`, `NOT_ON_THIS_TRIP` | 409 | Boarding: the student is not on this bus route, or does not ride this pickup/drop |
+| `NOT_BOARDED`, `TRIP_ENDED`, `STUDENT_NOT_ACTIVE` | 409 | Boarding: got off before boarding, the trip is over, or the student has left the school |
+| `ALERT_RESOLVED`, `ALERT_ALREADY_RESOLVED` | 409 | Alerts centre: the alert is already resolved |
+| `TICKET_CLOSED` | 409 | Fleet maintenance: the ticket is already done |
+| `TICKET_NOT_FOUND`, `FUEL_LOG_NOT_FOUND`, `TRACK_NOT_FOUND` | 404 | Fleet maintenance and trip replay: no such ticket or fuel entry, or the trip never reached the tracker |
 | `PAYMENT_EXCEEDS_BALANCE`, `DISCOUNT_TOO_HIGH`, `NO_PLAN_FOR_INSTALLMENT` | 400 | Fees: the amount is more than the invoice balance, the discount goes below what is paid, or no plan has that installment |
 | `INVOICE_PAID`, `INVOICE_CANCELLED`, `INVOICE_HAS_PAYMENTS` | 409 | Fees: nothing left to pay, the invoice is cancelled, or it has payments and cannot be cancelled |
 | `FEE_HEAD_EXISTS`, `TRANSPORT_HEAD_EXISTS`, `FEE_HEAD_IN_USE` | 409 | Fees: head code taken, a transport head already exists, or the head is on plans or invoices |
@@ -301,7 +306,8 @@ Sign in as 9000000004 (Priya, class teacher of 6-A) to try it.
 
 | `GET /mobile/teacher/timetable/today` | Home: today's periods in bell order with `kind` (class, substitute, free, break), section, subject, room, `students`, `present` (after the morning attendance) and `is_now`. Tap a section to open its student list |
 | `GET /mobile/teacher/students/{id}/history` | Student full history: profile and parents (with mobile numbers), attendance this year and this month, leave, remarks and discipline (`behaviour`), `achievements`, health, documents and ID card |
-| `GET` / `POST /mobile/teacher/students/{id}/achievements` | List or add an achievement: `{ "title": "District chess", "category": "competition", "level": "district", "position": "1st place", "achieved_on": "2026-10-24" }`. Parents are told |
+| `GET` / `POST /mobile/teacher/students/{id}/achievements` | List or add an achievement: `{ "title": "Inter-school football", "category": "sports", "level": "district", "result": "winner", "event_scope": "inter_school", "venue_type": "outdoor", "participation": "team", "team_name": "U-14 team", "prize_received": "Trophy", "school_reward": "Medal", "achieved_on": "2026-10-24" }`. Sports needs `venue_type`. Parents are told |
+| `GET /mobile/teacher/sections/{id}/activity-ranking` | My section ranked by sports and activity points (default all non-academic; `?category=sports` for sports only) |
 | `GET /mobile/teacher/substitutions` | Classes I cover for absent teachers, today and the next 7 days: date, period and time, section, subject, room, who is away, note |
 
 Staff leave status moves `pending_hod` → `pending_principal` → `approved` (or `rejected` at any step). With no HOD in the department it starts at `pending_principal`.
@@ -315,21 +321,50 @@ Biometric machines push punches to `POST /integrations/biometric/punches` with h
 |---|---|
 | `GET /mobile/driver/trips/today` | Home: my bus, `active_trip` (the trip running now) and each route with today's trips. Show "Start morning pickup" / "Start evening drop" when `active_trip` is null |
 | `POST /mobile/driver/trips` | `{ "route_id": 1, "kind": "pickup" }` starts the trip. Parents of the route get "Bus has started". 409 `TRIP_ALREADY_ACTIVE`, 400 `NO_TRACKER` |
-| `GET /mobile/driver/trips/{id}` | Trip screen: `stop_list` in travel order with `status` and `eta_seconds`, `school` (end of a pickup), `riders` and `not_boarded` |
+| `GET /mobile/driver/trips/{id}` | Trip screen: `stop_list` in travel order with `status` and `eta_seconds`, `school` (end of a pickup), `riders` (with `boarded`, `alighted`), `not_boarded` and `boardings` (newest first) |
 | `POST /mobile/driver/trips/{id}/positions` | Phone GPS fallback every 5–10 s: `{ "lat", "lng", "speed", "heading" }`. Used only when the bus tracker is silent for 60 s |
 | `POST /mobile/driver/trips/{id}/end` | End by hand. A pickup also ends by itself inside the school gate; a drop after the last stop |
+| `POST /mobile/driver/trips/{id}/boardings` | Scan or tap: `{ "action": "boarded", "qr_token": "TZS1.12.1.…" }` after scanning the ID card, or `{ "action": "alighted", "student_id": 12 }` from the `riders` list. Returns the row with `method` (`qr`/`manual`), `stop` (null at the school gate), `occurred_at` and `already_recorded` (a double scan is safe and sends nothing). Parents get **{child} boarded the bus** / **got off the bus**. 409 `NOT_ON_THIS_ROUTE`, `NOT_ON_THIS_TRIP`, `NOT_BOARDED`, `QR_REPLACED` (old card), `TRIP_ENDED`; 400 `QR_INVALID` |
+| `POST /mobile/driver/sos` | SOS button: `{ "trip_id"?, "lat"?, "lng"?, "note"? }` (all optional; the running trip and the bus position are used). School admins and the transport in-charge get a push and an SMS with the name and number to call. Pressing again within 2 minutes returns the same alert with `already_raised: true` |
 
 ### Parent app
-`GET /mobile/parent/children/{id}/bus` returns `status` (`no_trip`, `on_the_way`, `approaching`, `at_stop`, `passed`, `trip_ended`), a ready `headline` ("Bus is 4 min away from Thirumangalam metro"), the child's `stop`, `eta_seconds`, `position` (live, or the bus's last known position with `position_stale`) and `trip`. It is `null` when the child does not use the bus.
+`GET /mobile/parent/children/{id}/bus` returns `status` (`no_trip`, `on_the_way`, `approaching`, `at_stop`, `passed`, `trip_ended`), a ready `headline` ("Bus is 4 min away from Thirumangalam metro"), the child's `stop`, `eta_seconds`, `position` (live, or the bus's last known position with `position_stale`), `trip` and `boarding` (the child's latest scan on that trip: `action`, `method`, `stop`, `occurred_at`; null before the first scan). It is `null` when the child does not use the bus.
 
-Parents are told automatically: **Bus has started** (whole route), **Bus is N min away** (only parents of that stop, before the bus arrives; SMS if the push does not reach the phone) and **Bus reached {stop}**.
+Parents are told automatically: **Bus has started** (whole route), **Bus is N min away** (only parents of that stop, before the bus arrives; SMS if the push does not reach the phone) and **Bus reached {stop}**, plus **{child} boarded the bus** and **{child} got off the bus** when the attendant scans the ID card.
+
+At the end of a pickup, class teachers get the list of expected children who were not scanned on (only when the trip had at least one scan, so a bus without scanning sends no false list).
 
 ### Live updates (socket.io)
 Connect to the namespace `/live` on the API host with `{ auth: { token: "<access_token>" } }`, then:
 
 - `emit('trip.subscribe', { trip_id })` → ack `{ ok: true }`. A parent can follow only a trip their child rides; a driver only their own bus; admins any trip of their school. Otherwise `{ ok: false, error: "FORBIDDEN" }`.
 - Receive `trip.position` `{ trip_id, position: { lat, lng, speed, heading, recorded_at, source } }` every few seconds and `trip.event` `{ trip_id, type, stop, eta_seconds, end_reason }` for `trip.started`, `stop.approaching`, `stop.arrived`, `stop.departed`, `trip.ended`.
+- `passenger.boarded` / `passenger.alighted` `{ trip_id, boarding_id, student_id, action, method, stop, occurred_at }` on each scan. The fleet room (admin web) also gets `full_name` and `class_section`; trip followers (parents) get only `student_id`.
+- Admin web: `emit('fleet.subscribe', {})` to get every trip of the school plus `alert.raised` and `alert.updated` (same shape as an alerts centre row).
 - When the access token expires the socket is closed with an `error` event: refresh the token and connect again.
+
+### Alerts centre (admin web)
+`GET /admin/fleet/alerts` lists SOS and safety alerts, newest first: search (message, bus, driver), `kind` (`sos`, `overspeed`, `harsh_braking`, `idle`, `route_deviation`, `vehicle_fault`, `other`), `status` (`open`, `acknowledged`, `resolved`), `severity`, `active=true` (not resolved), `vehicle_id`, `trip_id`, `from`, `to`. Each row has `kind_label`, `message`, `vehicle`, `route`, `trip`, `raised_by` (with `mobile` to call), `position`, `data` and who acknowledged or resolved it. `GET /admin/fleet/alerts/insights` returns `open`, `sos_active`, `high_active`, `acknowledged`, `resolved_today`, `raised_today` and `active_by_kind`. `POST .../{id}/acknowledge` (safe to repeat) and `POST .../{id}/resolve` `{ "resolution_note": "Called the driver, all safe" }` (at least 3 characters) need `fleet.manage`; reading needs `fleet.view`.
+
+Safety alerts come from the Telematics service as `alert.raised` webhook events (overspeed, harsh braking, idling, off route). The bus is found from `device_id` (and the trip, when given). Retries of the same event are stored once. The office gets a push; `high` severity also an SMS when the push does not reach the phone.
+
+### Maintenance, fuel, vehicle health and trip replay (admin web)
+Read with `fleet.view`, change with `fleet.manage`. `{id}` of a bus is the school bus (`/admin/transport/vehicles`).
+
+| Call | Use |
+|---|---|
+| `GET /admin/fleet/buses/{id}/health` | Health card: `bus`, `has_tracker`, `open_tickets` and `health` (null without a tracker): `status` `good`/`warning`/`critical`/`unknown`, `reasons`, `battery_v`, `coolant_c`, `rpm`, `fuel_pct`, `odometer_km`, `engine_load_pct`, `reading_at` and `faults` `[{ code, description, severity, first_seen_at }]` |
+| `GET /admin/fleet/buses/{id}/obd?from&to&page&limit` | OBD log, newest first. 400 `NO_TRACKER` |
+| `GET /admin/fleet/maintenance` | Tickets: search, `status` (`open`, `in_progress`, `done`), `source` (`obd`, `manual`), `vehicle_id`; sort `opened_at`, `closed_at`, `cost`, `status`. `GET .../insights?vehicle_id=` returns `total`, `open`, `in_progress`, `done`, `obd_open`, `cost_this_month` |
+| `POST /admin/fleet/maintenance` | `{ "vehicle_id": 1, "title": "Front tyre worn", "description"?, "fault_code"? ("P0301"), "severity"?, "odometer_km"?, "vendor"?, "cost"?, "notes"? }` |
+| `PATCH /admin/fleet/maintenance/{id}` | Any field above (not the bus) and `status`; `done` sets `closed_at`, leaving `done` clears it |
+| `POST /admin/fleet/maintenance/{id}/close` | `{ "cost"?, "vendor"?, "odometer_km"?, "notes"? }`. 409 `TICKET_CLOSED` |
+| `GET /admin/fleet/fuel` | Fuel log: `vehicle_id`, `from`, `to`, search (station, bus); sort `filled_on`, `amount`, `litres`, `odometer_km`. Each entry has `price_per_litre`, `km_since_last` and `km_per_litre` (distance since the previous fill of that bus ÷ litres of this fill; null for the first). `GET .../insights?vehicle_id=` returns this month's `entries_this_month`, `litres_this_month`, `amount_this_month` and `avg_km_per_litre` (last 90 days) |
+| `POST` / `PATCH` / `DELETE /admin/fleet/fuel[/{id}]` | `{ "vehicle_id": 1, "filled_on": "2026-11-03", "litres": 60.5, "amount": 5800, "odometer_km": 48213, "station"?, "bill_file_id"? (from `POST /files`), "filled_by"? (user id) }`. `filled_on` cannot be in the future and `odometer_km` must sit between the fills before and after it (field errors) |
+| `GET /admin/transport/trips?date&route_id&vehicle_id&status=ended` | Trip history |
+| `GET /admin/fleet/trips/{id}/playback?max_points=1500` | Replay: `trip`, `school`, `path` (planned route), `points` `[{ at, lat, lng, speed, heading }]` oldest first (thinned evenly to `max_points`, `sampled` says so), `distance_km`, `duration_seconds`, `max_speed`, `avg_speed`, `stop_arrivals` and `safety_events`. 404 `TRACK_NOT_FOUND` |
+
+When the Telematics service reports a new engine fault code it sends `vehicle.fault` `{ id, type, at, device_id, fault: { code, description, severity }, odometer_km? }`. The bus with that tracker gets a maintenance ticket (`source: obd`, one open ticket per code; retries are stored once) and admins and the transport in-charge get `VEHICLE_FAULT` (push and in-app; `bus`, `code`, `fault`, `severity`).
 
 ## Exams, marks and ranking
 
@@ -363,6 +398,19 @@ Grades (CBSE-like, on the percentage): A1 91+, A2 81+, B1 71+, B2 61+, C1 51+, C
 ### Admin web
 
 `/admin/exams` (list, create with `class_ids`, `PATCH`, `DELETE` draft only), `/admin/exams/{id}/subjects` (`GET`, `PUT` the full list of papers), `/admin/exams/{id}/sections/{sectionId}/marks?subject_id=` (`GET`, `PUT`), `/admin/exams/{id}/sections/{sectionId}/results`, `/admin/exams/{id}/classes/{classId}/toppers?limit=3`, `/admin/exams/{id}/toppers` (top 3 of every class), `POST /admin/exams/{id}/publish` and `/admin/students/{id}/results`. Permissions `exams.view` (Principal, AO) and `exams.manage` (AO).
+
+## Sports and activities
+
+Students are ranked by activities too, not only by marks. Every achievement has `result` (`winner`, `runner_up`, `third_place`, `participated` = took part, no win), `event_scope` (`sports_day`, `in_school`, `inter_school`, `out_of_school`), `venue_type` (`indoor`/`outdoor`, required for `category: "sports"`), `participation` (`individual`/`team` with `team_name`), `prize_received` (what the event gave), `school_reward` (what the school gave) and `points`.
+
+Points = level (class 1, school 2, zone 3, district 5, state 8, national 12, international 15) × result (winner 4, runner-up 3, third 2, took part 1). A district winner scores 20.
+
+| Call | Use |
+|---|---|
+| `GET /admin/achievements/leaderboard?category=sports` | Students ranked by points (`non_academic` = every activity except academic). Filters `class_id`, `section_id`, `from`, `to` (default: current academic year). Equal points share a rank |
+| `GET /admin/achievements` | Every achievement in the school with filters: `category`, `level`, `result` (or `podium`), `event_scope`, `venue_type`, `participation`, `outside_school`, `district_or_above`, class and section, search |
+| `GET /admin/achievements/insights` | Counts: total, sports, wins, outside school, district and above, students |
+| `GET /mobile/teacher/sections/{id}/activity-ranking` | Same ranking for one of my sections |
 
 ## Fees and payment status
 

@@ -9,6 +9,7 @@ import { RouteStop } from '../transport/entities/route-stop.entity';
 import { StudentTransport } from '../transport/entities/student-transport.entity';
 import { TransportRoute } from '../transport/entities/transport-route.entity';
 import { Vehicle } from '../transport/entities/vehicle.entity';
+import { BoardingDto, ChildBoardingDto } from './dto/boarding.dto';
 import {
   ChildBusDto,
   DriverTodayDto,
@@ -171,6 +172,7 @@ export class TripsService {
     if (query.date) qb.andWhere('t.trip_date = :date', { date: query.date });
     if (query.status) qb.andWhere('t.status = :status', { status: query.status });
     if (query.route_id) qb.andWhere('t.route_id = :route', { route: query.route_id });
+    if (query.vehicle_id) qb.andWhere('t.vehicle_id = :vehicle', { vehicle: query.vehicle_id });
     const [rows, total] = await qb
       .orderBy('t.started_at', 'DESC')
       .skip((query.page - 1) * query.limit)
@@ -182,10 +184,11 @@ export class TripsService {
   async detail(schoolId: number, tripId: number): Promise<TripDetailDto> {
     const trip = await this.refresh(await this.find(schoolId, tripId));
     const [summary] = await this.present([trip]);
-    const [events, riders, school] = await Promise.all([
+    const [events, riders, school, boardings] = await Promise.all([
       this.events.find({ where: { trip_id: trip.id }, order: { occurred_at: 'ASC', id: 'ASC' } }),
       this.riders(trip),
       this.dataSource.query(`SELECT latitude, longitude FROM schools WHERE id = $1`, [schoolId]),
+      this.boardingList(trip),
     ]);
     const stopNames = new Map(trip.stops.map((stop) => [stop.stop_id, stop.name]));
     return {
@@ -203,6 +206,7 @@ export class TripsService {
       })),
       riders,
       not_boarded: riders.filter((rider) => !rider.boarded && !rider.away_today),
+      boardings,
     };
   }
 
@@ -321,6 +325,7 @@ export class TripsService {
     let position: TripPositionDto | null = trip?.last_position ?? null;
     if (!position && vehicle?.device_id) position = await this.lastKnown(vehicle.device_id);
     const status = childBusStatus(trip, assignment.stop_id);
+    const boarding = trip ? await this.childBoarding(trip, studentId) : null;
     const eta = status === 'on_the_way' || status === 'approaching' ? (stopState?.eta_seconds ?? null) : null;
     return {
       status,
@@ -334,6 +339,7 @@ export class TripsService {
       eta_seconds: eta,
       position,
       position_stale: position ? Date.now() - new Date(position.recorded_at).getTime() > STALE_MS : true,
+      boarding,
     };
   }
 
@@ -362,8 +368,8 @@ export class TripsService {
     );
     if (!rows.length) return [];
     const ids = rows.map((row) => Number(row.student_id));
-    const [boarded, away] = await Promise.all([
-      this.boardings.find({ where: { trip_id: trip.id, student_id: In(ids), action: 'boarded' } }),
+    const [recorded, away] = await Promise.all([
+      this.boardings.find({ where: { trip_id: trip.id, student_id: In(ids) } }),
       this.dataSource.query(
         `SELECT student_id FROM student_leave_requests
            WHERE student_id = ANY($1) AND status = 'approved' AND deleted_at IS NULL AND from_date <= $2 AND to_date >= $2
@@ -373,7 +379,8 @@ export class TripsService {
         [ids, trip.trip_date],
       ) as Promise<{ student_id: number }[]>,
     ]);
-    const boardedIds = new Set(boarded.map((row) => row.student_id));
+    const boardedIds = new Set(recorded.filter((row) => row.action === 'boarded').map((row) => row.student_id));
+    const alightedIds = new Set(recorded.filter((row) => row.action === 'alighted').map((row) => row.student_id));
     const awayIds = new Set(away.map((row) => Number(row.student_id)));
     const order = new Map(trip.stops.map((stop, index) => [stop.stop_id, index]));
     return rows
@@ -385,11 +392,78 @@ export class TripsService {
         mode: row.mode,
         passenger_ref: row.passenger_ref,
         boarded: boardedIds.has(Number(row.student_id)),
+        alighted: alightedIds.has(Number(row.student_id)),
         away_today: awayIds.has(Number(row.student_id)),
       }))
       .sort(
         (a, b) => (order.get(a.stop_id) ?? 99) - (order.get(b.stop_id) ?? 99) || a.full_name.localeCompare(b.full_name),
       );
+  }
+
+  async boardingList(trip: TransportTrip): Promise<BoardingDto[]> {
+    const rows = await this.boardings.find({ where: { trip_id: trip.id }, order: { occurred_at: 'DESC', id: 'DESC' } });
+    return this.presentBoardings(trip, rows);
+  }
+
+  async presentBoardings(trip: TransportTrip, rows: TripBoarding[]): Promise<BoardingDto[]> {
+    if (!rows.length) return [];
+    const [students, people] = await Promise.all([
+      this.dataSource.query(
+        `SELECT s.id, s.first_name, s.last_name, c.name AS class_name, sec.name AS section_name
+         FROM students s
+         LEFT JOIN student_enrollments e ON e.student_id = s.id
+           AND e.academic_year_id = (SELECT id FROM academic_years y WHERE y.school_id = s.school_id AND y.is_current LIMIT 1)
+         LEFT JOIN sections sec ON sec.id = e.section_id
+         LEFT JOIN classes c ON c.id = e.class_id
+         WHERE s.id = ANY($1)`,
+        [[...new Set(rows.map((row) => row.student_id))]],
+      ) as Promise<
+        {
+          id: number;
+          first_name: string;
+          last_name: string | null;
+          class_name: string | null;
+          section_name: string | null;
+        }[]
+      >,
+      this.dataSource.query(`SELECT id, name FROM users WHERE id = ANY($1)`, [
+        [...new Set(rows.map((row) => row.recorded_by).filter(Boolean))],
+      ]) as Promise<{ id: number; name: string }[]>,
+    ]);
+    const stopNames = new Map(trip.stops.map((stop) => [stop.stop_id, stop.name]));
+    return rows.map((row) => {
+      const student = students.find((item) => Number(item.id) === row.student_id);
+      const person = people.find((item) => Number(item.id) === row.recorded_by);
+      return {
+        id: row.id,
+        trip_id: row.trip_id,
+        student_id: row.student_id,
+        full_name: student ? [student.first_name, student.last_name].filter(Boolean).join(' ') : '',
+        class_section: student?.class_name
+          ? [student.class_name, student.section_name].filter(Boolean).join(' - ')
+          : null,
+        action: row.action,
+        method: row.method,
+        stop: row.stop_id ? { id: row.stop_id, name: stopNames.get(row.stop_id) ?? '' } : null,
+        recorded_by: person ? { id: Number(person.id), name: person.name } : null,
+        occurred_at: row.occurred_at,
+      };
+    });
+  }
+
+  private async childBoarding(trip: TransportTrip, studentId: number): Promise<ChildBoardingDto | null> {
+    const row = await this.boardings.findOne({
+      where: { trip_id: trip.id, student_id: studentId },
+      order: { occurred_at: 'DESC', id: 'DESC' },
+    });
+    if (!row) return null;
+    const stop = row.stop_id ? trip.stops.find((item) => item.stop_id === row.stop_id) : null;
+    return {
+      action: row.action,
+      method: row.method,
+      stop: stop ? { id: stop.stop_id, name: stop.name } : null,
+      occurred_at: row.occurred_at,
+    };
   }
 
   async find(schoolId: number, tripId: number): Promise<TransportTrip> {

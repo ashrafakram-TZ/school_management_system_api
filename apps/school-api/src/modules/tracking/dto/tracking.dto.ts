@@ -4,6 +4,7 @@ import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-val
 import { ListQueryDto } from '@app/common';
 import { IsDateOnly } from '../../../shared/dates';
 import { RefDto } from '../../students/dto/student-response.dto';
+import { BoardingDto, ChildBoardingDto } from './boarding.dto';
 import { TRANSPORT_MODES, TransportMode } from '../../transport/entities/student-transport.entity';
 import {
   STOP_STATUSES,
@@ -80,6 +81,12 @@ export class TripQueryDto extends ListQueryDto {
   @Type(() => Number)
   @IsInt()
   route_id?: number;
+
+  @ApiPropertyOptional({ example: 1, description: 'The bus (vehicles.id)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  vehicle_id?: number;
 }
 
 export class TripPositionDto {
@@ -258,6 +265,9 @@ export class RiderDto {
   @ApiProperty({ example: false })
   boarded: boolean;
 
+  @ApiProperty({ example: false, description: 'Got off the bus (scanned or tapped as alighted)' })
+  alighted: boolean;
+
   @ApiProperty({ example: false, description: 'On leave or marked absent today, so not expected' })
   away_today: boolean;
 }
@@ -281,6 +291,9 @@ export class TripDetailDto extends TripDto {
 
   @ApiProperty({ type: [RiderDto], description: 'Expected but not boarded yet (students away today are left out)' })
   not_boarded: RiderDto[];
+
+  @ApiProperty({ type: [BoardingDto], description: 'Who boarded or got off, newest first, with time and method' })
+  boardings: BoardingDto[];
 }
 
 export class DriverRouteTodayDto {
@@ -358,4 +371,11 @@ export class ChildBusDto {
 
   @ApiProperty({ example: false, description: 'true when position is older than 2 minutes' })
   position_stale: boolean;
+
+  @ApiProperty({
+    type: ChildBoardingDto,
+    nullable: true,
+    description: 'The child’s latest scan on this trip (boarded or alighted); null before the first scan',
+  })
+  boarding: ChildBoardingDto | null;
 }

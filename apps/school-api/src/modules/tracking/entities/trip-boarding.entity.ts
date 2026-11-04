@@ -3,8 +3,12 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
 export const BOARDING_ACTIONS = ['boarded', 'alighted'] as const;
 export type BoardingAction = (typeof BOARDING_ACTIONS)[number];
 
+export const BOARDING_METHODS = ['qr', 'manual'] as const;
+export type BoardingMethod = (typeof BOARDING_METHODS)[number];
+
 @Entity('transport_boardings')
-@Index('IDX_transport_boardings_trip_student', ['trip_id', 'student_id'])
+@Index('UQ_transport_boardings_trip_student_action', ['trip_id', 'student_id', 'action'], { unique: true })
+@Index('IDX_transport_boardings_school_occurred', ['school_id', 'occurred_at'])
 export class TripBoarding {
   @PrimaryGeneratedColumn()
   id: number;
@@ -25,7 +29,7 @@ export class TripBoarding {
   action: BoardingAction;
 
   @Column({ type: 'varchar', length: 10, default: 'manual' })
-  method: string;
+  method: BoardingMethod;
 
   @Column({ type: 'int', nullable: true })
   recorded_by: number | null;

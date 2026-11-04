@@ -89,7 +89,9 @@ One Flutter app for Parent, Staff (teacher) and Driver. One sign-in per person; 
 - **Parent**: \`GET /mobile/parent/children/{id}/bus\` gives status, headline, ETA to the child's stop and the bus position. **Driver**: \`GET /mobile/driver/trips/today\`, start with \`POST /mobile/driver/trips\`, phone GPS fallback \`POST /mobile/driver/trips/{id}/positions\`.
 - **Live updates**: socket.io namespace \`/live\` with \`{ auth: { token } }\`; \`emit('trip.subscribe', { trip_id })\`, then receive \`trip.position\` and \`trip.event\`. A parent can follow only their own child's trip.
 
-Sample number with both roles in the demo school: **9791543989** (Teacher of 6 - A Computer Science, and Parent of Aadhavan Senthil). It gets \`"mobile_apps": ["staff", "parent"]\`.`;
+Sample number with both roles in the demo school: **9791543989** (Teacher of 6 - A Computer Science, and Parent of Aadhavan Senthil). It gets \`"mobile_apps": ["staff", "parent"]\`.
+
+Sample number with all three mobile roles: **9566331808** (Venkatesh). Teacher of 7 - A Mathematics and 3 - A English (class teacher of 3 - A), Parent of Nila Narayanan (3 - A, rides Bus 2), and Driver of Bus 2. It gets \`"mobile_apps": ["parent", "staff", "driver"]\`, so the app shows the role picker with all three.`;
 
 const AFTER_VERIFY =
   'After sign-in, read data.user.mobile_apps: one item → open that home directly; two or more → show a chooser from data.user.sections (label) and open the chosen home. Switching later needs no new OTP or token.';
