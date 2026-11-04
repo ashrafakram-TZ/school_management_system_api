@@ -4,6 +4,7 @@ import { ApiEnvelope, ApiErrors, AuthUser, CurrentUser, RequireRoles, ResponseMe
 import { ROLES } from '../access/access.catalog';
 import {
   CancelMeetingDto,
+  ExtendMeetingDto,
   JoinMeetingDto,
   MeetingDetailDto,
   MeetingDto,
@@ -20,7 +21,9 @@ import { MobileAccessService } from './mobile-access.service';
 
 const JOIN_DESCRIPTION =
   'Returns the Agora app_id, channel_name, uid and RTC token for the Flutter agora_rtc_engine. ' +
-  'Opens 10 minutes before the start and closes 30 minutes after the end. The first join turns the meeting live. ' +
+  'Opens 10 minutes before the start. The first join makes it in_progress; past the scheduled end it becomes time_exceeded and ' +
+  'stays joinable until the host ends it. A meeting nobody joins becomes missed 30 minutes after its end. ' +
+  'Tokens are short-lived: renew with POST .../token. ' +
   '409 MEETING_NOT_OPEN, MEETING_ENDED or MEETING_CANCELLED; 503 VIDEO_NOT_CONFIGURED when the Agora keys are not set.';
 
 @ApiTags('Mobile · Teacher')
@@ -106,14 +109,36 @@ export class MobileTeacherMeetingsController {
     return this.meetings.leave(user, 'teacher', meetingId);
   }
 
+  @Post('meetings/:meetingId/extend')
+  @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Meeting extended')
+  @ApiOperation({
+    summary:
+      'Host only: add minutes to the scheduled end (also after time_exceeded). The parent sees the new end time.',
+    description: '409 MEETING_NOT_LIVE unless in_progress or time_exceeded; up to 120 extra minutes in total',
+  })
+  @ApiEnvelope(MeetingDto, { message: 'Meeting extended' })
+  @ApiErrors(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT)
+  extend(
+    @CurrentUser() user: AuthUser,
+    @Param('meetingId', ParseIntPipe) meetingId: number,
+    @Body() dto: ExtendMeetingDto,
+  ) {
+    return this.meetings.extend(user, meetingId, dto);
+  }
+
   @Post('meetings/:meetingId/end')
   @HttpCode(HttpStatus.OK)
   @ResponseMessage('Meeting ended')
-  @ApiOperation({ summary: 'End the call for both people', description: '409 MEETING_NOT_LIVE when nobody joined' })
+  @ApiOperation({
+    summary: 'Host only: end the meeting for everyone',
+    description:
+      'Marks it completed, stops new tokens, and removes everyone from the Agora channel (kicking rule) when AGORA_CUSTOMER_ID is set. 409 MEETING_NOT_LIVE when nobody joined.',
+  })
   @ApiEnvelope(MeetingDto, { message: 'Meeting ended' })
   @ApiErrors(HttpStatus.NOT_FOUND, HttpStatus.CONFLICT)
   end(@CurrentUser() user: AuthUser, @Param('meetingId', ParseIntPipe) meetingId: number) {
-    return this.meetings.end(user, 'teacher', meetingId);
+    return this.meetings.end(user, meetingId);
   }
 
   @Post('meetings/:meetingId/cancel')
@@ -215,16 +240,6 @@ export class MobileParentMeetingsController {
   @ApiErrors(HttpStatus.NOT_FOUND)
   leave(@CurrentUser() user: AuthUser, @Param('meetingId', ParseIntPipe) meetingId: number) {
     return this.meetings.leave(user, 'parent', meetingId);
-  }
-
-  @Post('meetings/:meetingId/end')
-  @HttpCode(HttpStatus.OK)
-  @ResponseMessage('Meeting ended')
-  @ApiOperation({ summary: 'End the call for both people', description: '409 MEETING_NOT_LIVE when nobody joined' })
-  @ApiEnvelope(MeetingDto, { message: 'Meeting ended' })
-  @ApiErrors(HttpStatus.NOT_FOUND, HttpStatus.CONFLICT)
-  end(@CurrentUser() user: AuthUser, @Param('meetingId', ParseIntPipe) meetingId: number) {
-    return this.meetings.end(user, 'parent', meetingId);
   }
 
   @Post('meetings/:meetingId/cancel')

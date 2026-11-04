@@ -2,55 +2,102 @@ import { FieldError } from '@app/common';
 import { MeetingStatus } from './entities/meeting.entity';
 
 export const JOIN_EARLY_MINUTES = 10;
-export const JOIN_GRACE_MINUTES = 30;
-export const REMINDER_MINUTES = 10;
+export const NO_SHOW_GRACE_MINUTES = 30;
+export const START_REMINDER_MINUTES = 10;
+export const END_REMINDER_MINUTES = 5;
+export const EMPTY_CLOSE_MINUTES = 15;
 export const MAX_DAYS_AHEAD = 60;
 export const PAST_TOLERANCE_MINUTES = 1;
-export const OPEN_STATUSES: MeetingStatus[] = ['scheduled', 'live'];
+export const MAX_EXTENSION_MINUTES = 120;
+export const OPEN_STATUSES: MeetingStatus[] = ['scheduled', 'in_progress', 'time_exceeded'];
+export const ACTIVE_STATUSES: MeetingStatus[] = ['in_progress', 'time_exceeded'];
 
 const MINUTE_MS = 60_000;
 
-export interface JoinWindow {
-  opens_at: Date;
-  closes_at: Date;
-}
+export const addMinutes = (date: Date, minutes: number) => new Date(date.getTime() + minutes * MINUTE_MS);
 
 export function endsAt(scheduledAt: Date, durationMinutes: number): Date {
-  return new Date(scheduledAt.getTime() + durationMinutes * MINUTE_MS);
+  return addMinutes(scheduledAt, durationMinutes);
 }
 
-export function joinWindow(scheduledAt: Date, durationMinutes: number): JoinWindow {
-  return {
-    opens_at: new Date(scheduledAt.getTime() - JOIN_EARLY_MINUTES * MINUTE_MS),
-    closes_at: new Date(endsAt(scheduledAt, durationMinutes).getTime() + JOIN_GRACE_MINUTES * MINUTE_MS),
-  };
+export interface MeetingTiming {
+  status: MeetingStatus;
+  scheduled_at: Date;
+  scheduled_end_at: Date;
 }
 
-export function canJoin(
-  meeting: { status: MeetingStatus; scheduled_at: Date; duration_minutes: number },
-  now: Date,
-): boolean {
-  if (!OPEN_STATUSES.includes(meeting.status)) return false;
-  const window = joinWindow(meeting.scheduled_at, meeting.duration_minutes);
-  return now >= window.opens_at && now <= window.closes_at;
+export function joinOpensAt(meeting: Pick<MeetingTiming, 'scheduled_at'>): Date {
+  return addMinutes(meeting.scheduled_at, -JOIN_EARLY_MINUTES);
 }
 
-export function joinBlockReason(
-  meeting: { status: MeetingStatus; scheduled_at: Date; duration_minutes: number },
-  now: Date,
-): { message: string; code: string } | null {
+export function noShowAt(meeting: Pick<MeetingTiming, 'scheduled_end_at'>): Date {
+  return addMinutes(meeting.scheduled_end_at, NO_SHOW_GRACE_MINUTES);
+}
+
+export function joinBlockReason(meeting: MeetingTiming, now: Date): { message: string; code: string } | null {
   if (meeting.status === 'cancelled') return { message: 'This meeting was cancelled', code: 'MEETING_CANCELLED' };
   if (meeting.status === 'completed' || meeting.status === 'missed') {
-    return { message: 'This meeting has already ended', code: 'MEETING_ENDED' };
+    return { message: 'This meeting has ended', code: 'MEETING_ENDED' };
   }
-  const window = joinWindow(meeting.scheduled_at, meeting.duration_minutes);
-  if (now < window.opens_at) {
+  if (ACTIVE_STATUSES.includes(meeting.status)) return null;
+  if (now < joinOpensAt(meeting)) {
     return {
       message: `The meeting opens ${JOIN_EARLY_MINUTES} minutes before it starts`,
       code: 'MEETING_NOT_OPEN',
     };
   }
-  if (now > window.closes_at) return { message: 'This meeting has already ended', code: 'MEETING_ENDED' };
+  if (now > noShowAt(meeting)) return { message: 'This meeting has ended', code: 'MEETING_ENDED' };
+  return null;
+}
+
+export function canJoin(meeting: MeetingTiming, now: Date): boolean {
+  return joinBlockReason(meeting, now) === null;
+}
+
+export function statusAfterJoin(status: MeetingStatus, scheduledEndAt: Date, now: Date): MeetingStatus {
+  if (status !== 'scheduled') return status;
+  return now >= scheduledEndAt ? 'time_exceeded' : 'in_progress';
+}
+
+export function isOverTime(meeting: MeetingTiming, now: Date): boolean {
+  return meeting.status === 'in_progress' && now >= meeting.scheduled_end_at;
+}
+
+export function endReminderDue(meeting: MeetingTiming & { end_reminder_sent_at: Date | null }, now: Date): boolean {
+  return (
+    meeting.status === 'in_progress' &&
+    !meeting.end_reminder_sent_at &&
+    now >= addMinutes(meeting.scheduled_end_at, -END_REMINDER_MINUTES) &&
+    now < meeting.scheduled_end_at
+  );
+}
+
+export function isNoShow(meeting: MeetingTiming, now: Date): boolean {
+  return meeting.status === 'scheduled' && now > noShowAt(meeting);
+}
+
+export function closesWhenEmpty(
+  meeting: MeetingTiming,
+  openParticipants: number,
+  lastActivity: Date,
+  now: Date,
+): boolean {
+  return (
+    ACTIVE_STATUSES.includes(meeting.status) &&
+    openParticipants === 0 &&
+    now > meeting.scheduled_end_at &&
+    now >= addMinutes(lastActivity, EMPTY_CLOSE_MINUTES)
+  );
+}
+
+export function extendedEnd(currentEnd: Date, minutes: number, now: Date): Date {
+  return addMinutes(currentEnd > now ? currentEnd : now, minutes);
+}
+
+export function extensionError(alreadyExtended: number, minutes: number): string | null {
+  if (alreadyExtended + minutes > MAX_EXTENSION_MINUTES) {
+    return `A meeting can be extended by up to ${MAX_EXTENSION_MINUTES} minutes in total`;
+  }
   return null;
 }
 
@@ -80,9 +127,33 @@ export function minutesBetween(from: Date | null, to: Date | null): number | nul
   return Math.max(0, Math.round((to.getTime() - from.getTime()) / MINUTE_MS));
 }
 
-export function expiredStatus(meeting: { status: MeetingStatus }): MeetingStatus {
-  return meeting.status === 'live' ? 'completed' : 'missed';
+export function actualMinutes(
+  meeting: { started_at: Date | null; ended_at: Date | null; status: MeetingStatus },
+  now: Date,
+): number | null {
+  if (!meeting.started_at) return null;
+  return minutesBetween(
+    meeting.started_at,
+    meeting.ended_at ?? (ACTIVE_STATUSES.includes(meeting.status) ? now : null),
+  );
 }
+
+export const AGORA_LEAVE_REASONS: Record<number, string> = {
+  0: 'other',
+  1: 'left',
+  2: 'timeout',
+  3: 'removed',
+  4: 'agora_internal',
+  5: 'switched_device',
+  9: 'reconnecting',
+  10: 'network',
+  12: 'token_expired',
+  99: 'network_unknown',
+  999: 'abnormal',
+};
+
+export const AGORA_JOIN_EVENTS = [103, 105, 107];
+export const AGORA_LEAVE_EVENTS = [104, 106, 108];
 
 export function formatMeetingTime(date: Date, timeZone: string): string {
   return new Intl.DateTimeFormat('en-IN', {

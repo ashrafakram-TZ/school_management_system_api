@@ -4,6 +4,9 @@ import { Column, Entity, Index } from 'typeorm';
 export const SCHOOL_BOARDS = ['CBSE', 'STATE', 'ICSE', 'OTHER'] as const;
 export type SchoolBoard = (typeof SCHOOL_BOARDS)[number];
 
+export const DIARY_REVIEW_MODES = ['all', 'remarks'] as const;
+export type DiaryReviewMode = (typeof DIARY_REVIEW_MODES)[number];
+
 @Entity('schools')
 @Index('UQ_schools_code', ['code'], { unique: true, where: 'deleted_at IS NULL' })
 export class School extends TrackedEntity {
@@ -54,6 +57,15 @@ export class School extends TrackedEntity {
 
   @Column({ type: 'varchar', length: 5, default: '08:45' })
   staff_reporting_time: string;
+
+  @Column({ type: 'varchar', length: 10, default: 'remarks' })
+  diary_review_mode: DiaryReviewMode;
+
+  @Column({ type: 'varchar', length: 5, default: '08:00' })
+  chat_office_start: string;
+
+  @Column({ type: 'varchar', length: 5, default: '17:00' })
+  chat_office_end: string;
 
   @Column({ type: 'boolean', default: true })
   is_active: boolean;

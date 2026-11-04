@@ -167,9 +167,16 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 | `MEETING_NOT_FOUND` | 404 | Not your meeting, or it does not exist |
 | `MEETING_CLASH` | 409 | The teacher or the parent already has a meeting at that time |
 | `NO_PARENT_ACCOUNT` | 409 | Staff app: no parent of this student has the app yet |
-| `MEETING_NOT_OPEN`, `MEETING_ENDED`, `MEETING_CANCELLED` | 409 | Join: opens 10 minutes before the start; closed 30 minutes after the end, or cancelled |
-| `MEETING_NOT_LIVE`, `MEETING_NOT_CANCELLABLE` | 409 | End needs a live call; cancel only before it starts |
+| `MEETING_NOT_OPEN`, `MEETING_ENDED`, `MEETING_CANCELLED` | 409 | Join: opens 10 minutes before the start; a meeting nobody joined closes 30 minutes after its end; completed or cancelled |
+| `MEETING_NOT_LIVE`, `MEETING_NOT_CANCELLABLE` | 409 | Extend or end needs a meeting in progress; cancel only before it starts |
 | `VIDEO_NOT_CONFIGURED` | 503 | The server has no Agora keys yet |
+| `NO_CURRENT_YEAR` | 400 | The school has no current academic year yet |
+| `SIGNATURE_INVALID`, `AGORA_WEBHOOK_OFF` | 401/503 | Agora webhook: wrong signature, or AGORA_WEBHOOK_SECRET is not set |
+| `DIARY_NOT_FOUND`, `DIARY_NOT_EDITABLE`, `DIARY_WRONG_STATUS` | 404/409 | Diary post not found, already published, or not in the right state for this action |
+| `NO_STUDENTS` | 409 | Diary: the class or section has no students yet |
+| `ANNOUNCEMENT_NOT_FOUND`, `ANNOUNCEMENT_NOT_EDITABLE`, `ANNOUNCEMENT_NOT_PUBLISHED` | 404/409 | Announcement not found, already sent, or not published |
+| `THREAD_NOT_FOUND`, `MESSAGE_NOT_FOUND` | 404 | Not your conversation or message |
+| `OWN_MESSAGE`, `ALREADY_FLAGGED`, `ALREADY_HIDDEN`, `NOT_HIDDEN`, `NOT_FLAGGED` | 400/409 | Chat reporting and hiding rules |
 | `PAYMENT_EXCEEDS_BALANCE`, `DISCOUNT_TOO_HIGH`, `NO_PLAN_FOR_INSTALLMENT` | 400 | Fees: the amount is more than the invoice balance, the discount goes below what is paid, or no plan has that installment |
 | `INVOICE_PAID`, `INVOICE_CANCELLED`, `INVOICE_HAS_PAYMENTS` | 409 | Fees: nothing left to pay, the invoice is cancelled, or it has payments and cannot be cancelled |
 | `FEE_HEAD_EXISTS`, `TRANSPORT_HEAD_EXISTS`, `FEE_HEAD_IN_USE` | 409 | Fees: head code taken, a transport head already exists, or the head is on plans or invoices |
@@ -505,37 +512,114 @@ Parents get `FEE_DUE` (category `fees`) when the school raises an invoice, and `
 
 `/admin/fees/heads` (CRUD; one transport head), `/admin/fees/plans` and `/admin/fees/plans/{classId}` (`GET`, `PUT` the lines of a class: head, installment, amount, due date), `/admin/fees/installments`, `POST /admin/fees/invoices/generate` `{ class_id?, installment, due_date? }` (safe to run again), `/admin/fees/invoices` (search, `status`, `class_id`, `section_id`, `installment`, `overdue`), `/admin/fees/invoices/{id}`, `PATCH .../discount`, `POST .../cancel`, `POST .../payments`, `/admin/fees/payments` (+ `/summary`, `from`, `to`, `mode`), `/admin/fees/payments/{id}/receipt`, `/admin/fees/insights` and `/admin/students/{id}/fees`. Transport line on an invoice = stop `monthly_fee` × months since the previous installment's due date (the year start for the first one), at least 1. Permissions `fees.view` (Principal, AO) and `fees.manage` (AO).
 
+## Academic year
+
+Meetings, diary posts, announcements and chats belong to the academic year they were created in. Every list (apps and admin web) shows only the **current** academic year; when the school switches to a new year, last year's history is no longer shown (the records stay in the database). An old record opened by id returns 404.
+
+## Live updates (socket.io `/comm`)
+
+Connect once after sign-in: `io('<server>/comm', { auth: { token: access_token } })`. The server puts you in your own room and sends:
+
+| Event | When |
+|---|---|
+| `chat.message` | A new message in one of my conversations (also my own, for my other devices) |
+| `chat.read` | `{ thread_id, reader_id, read_at, message_ids }`: the other person read my messages |
+| `chat.updated` | The school hid or restored a message |
+| `chat.typing` | `{ thread_id, user_id }`. Send `chat.typing { thread_id }` while typing |
+| `meeting.status` | `{ meeting_id, status, ends_at, extended_minutes, ended_at, end_reason, by }` on booking, start, extension, over time, end and cancel |
+| `meeting.reminder` | `{ meeting_id, kind: "start" }` 10 minutes before; `{ kind: "ending", minutes_left: 5, ends_at }` 5 minutes before the end: show it inside the call |
+| `meeting.participant` | `{ meeting_id, user_id, party, action: "joined" or "left" }` |
+
 ## Video meetings (Agora)
 
-A teacher and a parent book a short video call about one child. Either side can book it; both join from the app with the Agora SDK (`agora_rtc_engine` in Flutter). The admin web only lists meetings and their call log; it never joins a call.
+A teacher and a parent book a video call about one child. Either side can book it; both join from the app with `agora_rtc_engine`. The teacher is the **host**: only the host can extend or end the meeting. The admin web only lists meetings and their call log.
 
-Flow: book → `MEETING_SCHEDULED` push to the other person → `MEETING_REMINDER` 10 minutes before (SMS if push fails) → join opens 10 minutes before the start → the first join makes it `live` → `end` makes it `completed`. A meeting nobody joins becomes `missed` 30 minutes after its end; a live one is closed as `completed` then. Status: `scheduled`, `live`, `completed`, `missed`, `cancelled`.
+Lifecycle (example 10:00 to 10:30):
 
-Every meeting has `from` (who booked) and `to` (who it was booked with), plus `teacher`, `parent`, `student`, `can_join`, `join_opens_at`, `join_closes_at` and `call_minutes`.
+- Booking: `scheduled`, `MEETING_SCHEDULED` push to the other person, `MEETING_REMINDER` 10 minutes before the start.
+- 09:50: join opens. The first join makes it `in_progress` and records the actual start.
+- 10:25: `MEETING_ENDING` push and a `meeting.reminder` (`kind: ending`) event: show it inside the call.
+- 10:30: the status becomes `time_exceeded`. **Nobody is disconnected**; people keep talking and can still join. The host can extend (`POST .../extend { "minutes": 10 }`, 120 minutes in total), which moves `ends_at` and sets it back to `in_progress`.
+- The host ends it: `completed`, actual end and length saved, every attendance row closed, no new tokens, and the server asks Agora to remove everyone from the channel (kicking rule).
+- A meeting nobody joins becomes `missed` 30 minutes after its end. A running meeting that everyone left more than 15 minutes ago, after its end time, closes itself as `completed` (`end_reason: empty`).
+
+Tokens are short-lived (15 minutes). Renew with `POST .../token` on `onTokenPrivilegeWillExpire`; a completed meeting gets no new token (`409 MEETING_ENDED`). After a network drop, call `join` again: it records a new attendance row.
+
+Every meeting has `from` (who booked), `to`, `teacher`, `parent`, `student`, `host_id`, `academic_year`, `ends_at` (with extensions), `extended_minutes`, `can_join`, `join_opens_at`, `join_closes_at` (only before it starts), `call_minutes` (actual length) and `end_reason`.
 
 ### Staff app (Teacher, HOD, Principal)
 
 | Call | Screen |
 |---|---|
-| `GET /mobile/teacher/meetings?scope=upcoming` | My meetings; `scope` is `upcoming` (default, soonest first), `past` or `all` |
+| `GET /mobile/teacher/meetings?scope=upcoming` | My meetings; `scope` is `upcoming` (default), `past` or `all` |
 | `GET /mobile/teacher/students/{id}/parents` | Parents of the student who have the app, primary first |
-| `POST /mobile/teacher/meetings` | `{ "student_id": 12, "parent_user_id": 31, "title": "Maths progress", "agenda": null, "scheduled_at": "2026-11-11T16:30:00+05:30", "duration_minutes": 15 }`. `parent_user_id` is optional (primary parent). 5 to 60 minutes, up to 60 days ahead |
+| `POST /mobile/teacher/meetings` | `{ "student_id": 12, "parent_user_id": 31, "title": "Maths progress", "scheduled_at": "2026-11-11T10:00:00+05:30", "duration_minutes": 30 }` |
 | `GET /mobile/teacher/meetings/{id}` | One meeting with `call_log` |
-| `POST /mobile/teacher/meetings/{id}/join` | `{ "platform": "android" }` → `{ provider, app_id, channel_name, uid, token, expires_at, meeting }` |
-| `POST /mobile/teacher/meetings/{id}/token` | Fresh token during a call (on `onTokenPrivilegeWillExpire`) |
-| `POST /mobile/teacher/meetings/{id}/leave` | I left; the meeting stays open so I can rejoin |
-| `POST /mobile/teacher/meetings/{id}/end` | End the call for both |
-| `POST /mobile/teacher/meetings/{id}/cancel` | `{ "reason": "..." }` before it starts; the parent is told |
+| `POST /mobile/teacher/meetings/{id}/join` | `{ "platform": "android" }` → `{ provider, app_id, channel_name, uid, token, expires_at, role: "host", meeting }` |
+| `POST /mobile/teacher/meetings/{id}/token` | Fresh token during the call |
+| `POST /mobile/teacher/meetings/{id}/leave` | I left; I can rejoin |
+| `POST /mobile/teacher/meetings/{id}/extend` | Host: `{ "minutes": 10 }` |
+| `POST /mobile/teacher/meetings/{id}/end` | Host: end for everyone |
+| `POST /mobile/teacher/meetings/{id}/cancel` | `{ "reason": "..." }` before it starts |
 
 ### Parent app
 
-`GET /mobile/parent/meetings` (all children, optional `student_id`), `GET /mobile/parent/children/{id}/teachers` (class teacher first, with subjects), `POST /mobile/parent/children/{id}/meetings` `{ "teacher_user_id": 9, "title": "...", "scheduled_at": "...", "duration_minutes": 15 }`, and the same `GET /mobile/parent/meetings/{id}`, `join`, `token`, `leave`, `end`, `cancel` as the staff app.
+`GET /mobile/parent/meetings`, `GET /mobile/parent/children/{id}/teachers`, `POST /mobile/parent/children/{id}/meetings` `{ "teacher_user_id": 9, "title": "...", "scheduled_at": "...", "duration_minutes": 15 }`, `GET /mobile/parent/meetings/{id}`, `join` (role `participant`), `token`, `leave` and `cancel`. Parents cannot extend or end.
 
-Join with the SDK: `engine.initialize(RtcEngineContext(appId: app_id))`, then `engine.joinChannel(token: token, channelId: channel_name, uid: uid, options: ...)`. Call `leave` when the user hangs up and `end` to finish for both.
+### Admin web and server
 
-### Admin web
+`GET /admin/meetings` (filters `status`, `when`, `scheduled_by`, `teacher_user_id`, `guardian_id`, `student_id`, `date_from`, `date_to`), `/insights` and `/{id}` with the call log. Permission `meetings.view`.
 
-`GET /admin/meetings` (search topic, teacher, parent or student; `status`, `when` today/upcoming/past, `scheduled_by`, `teacher_user_id`, `guardian_id`, `student_id`, `date_from`, `date_to`; sort `scheduled_at`, `created_at`, `status`, `title`), `GET /admin/meetings/insights` and `GET /admin/meetings/{id}` with the call log. Permission `meetings.view` (Admin, Principal, AO). Server settings: `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE` (Agora console → project → primary certificate) and `AGORA_TOKEN_TTL_SECONDS`.
+Server settings: `AGORA_APP_ID` and `AGORA_APP_CERTIFICATE` (tokens), `AGORA_TOKEN_TTL_SECONDS` (default 900), `AGORA_CUSTOMER_ID` and `AGORA_CUSTOMER_SECRET` (Agora console → RESTful API; needed to remove everyone when the host ends), `AGORA_REST_URL`, and `AGORA_WEBHOOK_SECRET` (Agora console → Notifications, pointed at `POST /api/v1/integrations/agora/events`; join and leave events 103–108 then fill the call log with what Agora saw, including network drops). Without the customer keys, ending still blocks new tokens, and anyone still connected drops when their 15-minute token runs out.
+
+## Digital diary
+
+Teachers post **homework**, **remarks**, **feedback** or **notes** to a whole class (only if they teach every section), a section, or chosen students (up to 60), with up to 5 files and, for homework, a due date. The school chooses in School setup → Diary review: `remarks` (default: remarks and feedback wait for the office; homework and notes go out at once) or `all` (every post waits). Published posts reach parents with a `DIARY_POSTED` push.
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/teacher/diary?status=&type=&section_id=` | My posts this year with `seen_count` of `recipient_count` |
+| `POST /mobile/teacher/diary` | `{ "type": "homework", "scope": "section", "section_id": 4, "title": "Exercise 4.2", "body": "...", "subject_id": 7, "due_date": "2026-11-12", "file_ids": [41] }`; `scope: "students"` with `student_ids`, or `"class"` with `class_id` |
+| `GET /mobile/teacher/diary/{id}` | With every student and when their parent saw it |
+| `PATCH /mobile/teacher/diary/{id}` | Edit while `pending_review` or `rejected` (sent back); it goes for review again |
+| `DELETE /mobile/teacher/diary/{id}` | Removes it from the feed |
+| `GET /mobile/parent/children/{id}/diary?type=` | Parent feed (published only) with `seen` |
+| `POST /mobile/parent/children/{id}/diary/{entryId}/seen` | Mark as seen |
+
+Office: `GET /admin/diary` (+ `/insights`, `/{id}`), `POST /admin/diary/{id}/approve`, `/reject { "note" }` (the teacher gets `DIARY_REJECTED`), `/hide { "note" }` and `/restore`. Permissions `diary.view` and `diary.moderate`.
+
+## Announcements
+
+The office writes announcements for `everyone`, `parents`, `staff`, or `classes` (parents of chosen `class_ids` / `section_ids`), as a draft, scheduled (`publish_at`), or sent now (`publish_now: true`), with an optional `expires_at`. Urgent ones (`priority: urgent`) also go by SMS when the push does not arrive.
+
+Every app reads them the same way:
+
+| Call | Screen |
+|---|---|
+| `GET /me/announcements?unread=true` | Announcements sent to me this year, newest first, with `is_read` |
+| `GET /me/announcements/unread-count` | Badge |
+| `GET /me/announcements/{id}` | One |
+| `POST /me/announcements/{id}/read` | Mark read |
+
+Office: `GET`/`POST /admin/announcements`, `GET`/`PATCH`/`DELETE /admin/announcements/{id}` (edit and delete only drafts and scheduled ones), `POST .../publish`, `POST .../archive`, `GET .../readers?state=read|unread` and `GET /admin/announcements/insights`. Permissions `announcements.view` and `announcements.manage`.
+
+## Chat (teacher and parent)
+
+One conversation per teacher, parent and child per academic year. Messages are saved first, then delivered live over `/comm` with a `CHAT_MESSAGE` push.
+
+Office hours (School setup, default 08:00–17:00, Monday to Saturday, not on holidays): a parent message sent outside them is saved and shown to the teacher, but the teacher's push waits until office hours start (`held_for_office_hours: true`; the thread's `office_hours.next_open_at` says when). Teachers can write at any time.
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/teacher/chat/threads`, `GET /mobile/parent/chat/threads` | My conversations with `other`, `unread`, `last_message_preview` and `office_hours` |
+| `POST /mobile/teacher/chat/threads` | `{ "student_id": 12, "parent_user_id": 31 }` opens or reuses |
+| `POST /mobile/parent/children/{id}/chat/threads` | `{ "teacher_user_id": 9 }` opens or reuses |
+| `GET .../chat/threads/{id}/messages?before_id=` | Newest first, 30 at a time, `has_more` |
+| `POST .../chat/threads/{id}/messages` | `{ "body": "...", "file_id": null }` (text or a file) |
+| `POST .../chat/threads/{id}/read` | Read receipts for the other person's messages |
+| `POST .../chat/threads/{id}/messages/{messageId}/flag` | `{ "reason": "..." }` reports it to the office |
+
+A message the school hides comes back with `hidden: true` and `body: null`. Office audit: `GET /admin/chat/threads?flagged=true`, `/insights`, `/flagged`, `GET /admin/chat/threads/{id}` (whole transcript; the visit is logged), `POST /admin/chat/messages/{id}/hide { "reason" }`, `/unhide` and `/dismiss-flag`. Permission `chat.audit`.
 
 ## Payslips (every staff app)
 

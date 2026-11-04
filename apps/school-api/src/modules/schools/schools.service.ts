@@ -75,13 +75,15 @@ export class SchoolsService {
       throw AppException.conflict(`School code ${dto.code} is already used`, 'SCHOOL_CODE_TAKEN');
     }
     await this.assertLogo(id, dto.logo_file_id);
+    this.assertOfficeHours(school, dto);
     await this.schools.update(id, dto);
     return this.get(id);
   }
 
   async updateCurrent(id: number, dto: UpdateCurrentSchoolDto): Promise<SchoolDto> {
-    await this.find(id);
+    const school = await this.find(id);
     await this.assertLogo(id, dto.logo_file_id);
+    this.assertOfficeHours(school, dto);
     await this.schools.update(id, dto);
     return this.get(id);
   }
@@ -90,6 +92,14 @@ export class SchoolsService {
     const school = await this.schools.findOneBy({ id });
     if (!school) throw AppException.notFound('School not found', 'SCHOOL_NOT_FOUND');
     return school;
+  }
+
+  private assertOfficeHours(school: School, dto: { chat_office_start?: string; chat_office_end?: string }): void {
+    const start = dto.chat_office_start ?? school.chat_office_start;
+    const end = dto.chat_office_end ?? school.chat_office_end;
+    if (end <= start) {
+      throw AppException.validation([{ field: 'chat_office_end', message: 'Office hours must end after they start' }]);
+    }
   }
 
   private async assertLogo(schoolId: number, fileId: number | null | undefined): Promise<void> {
@@ -134,6 +144,9 @@ export class SchoolsService {
       longitude: school.longitude,
       geofence_radius_m: school.geofence_radius_m,
       staff_reporting_time: school.staff_reporting_time,
+      diary_review_mode: school.diary_review_mode,
+      chat_office_start: school.chat_office_start,
+      chat_office_end: school.chat_office_end,
       timezone: school.timezone,
       logo_file_id: school.logo_file_id,
       logo_url: this.files.linkFor(school.logo_file_id),

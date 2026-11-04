@@ -110,8 +110,37 @@ export class EnvironmentVariables {
 
   @IsInt()
   @Min(300)
-  @Max(86400)
-  AGORA_TOKEN_TTL_SECONDS: number = 3600;
+  @Max(3600)
+  AGORA_TOKEN_TTL_SECONDS: number = 900;
+
+  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => Boolean(env.AGORA_CUSTOMER_ID || env.AGORA_CUSTOMER_SECRET))
+  @IsString()
+  @MinLength(8, {
+    message:
+      'AGORA_CUSTOMER_ID and AGORA_CUSTOMER_SECRET come together from Agora console → RESTful API, or both empty',
+  })
+  AGORA_CUSTOMER_ID?: string;
+
+  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => Boolean(env.AGORA_CUSTOMER_ID || env.AGORA_CUSTOMER_SECRET))
+  @IsString()
+  @MinLength(8, {
+    message:
+      'AGORA_CUSTOMER_ID and AGORA_CUSTOMER_SECRET come together from Agora console → RESTful API, or both empty',
+  })
+  AGORA_CUSTOMER_SECRET?: string;
+
+  @IsUrl(
+    { require_tld: false, require_protocol: true },
+    { message: 'AGORA_REST_URL must be like https://api.sd-rtn.com' },
+  )
+  AGORA_REST_URL: string = 'https://api.sd-rtn.com';
+
+  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => Boolean(env.AGORA_WEBHOOK_SECRET))
+  @MinLength(16, { message: 'AGORA_WEBHOOK_SECRET is the secret Agora shows when you enable Notifications' })
+  AGORA_WEBHOOK_SECRET?: string;
 
   @IsOptional()
   @MinLength(32, {

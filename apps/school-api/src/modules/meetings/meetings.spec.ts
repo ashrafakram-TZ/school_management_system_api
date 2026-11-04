@@ -1,162 +1,225 @@
+import { createHmac } from 'node:crypto';
 import { AppException } from '@app/common';
-import { AgoraTokenService } from './agora-token.service';
+import { agoraSignatureValid, AgoraTokenService } from './agora-token.service';
+import { MeetingStatus } from './entities/meeting.entity';
 import {
+  actualMinutes,
   canJoin,
   channelName,
-  endsAt,
-  expiredStatus,
+  closesWhenEmpty,
+  endReminderDue,
+  extendedEnd,
+  extensionError,
   formatMeetingTime,
+  isNoShow,
+  isOverTime,
   joinBlockReason,
-  joinWindow,
   minutesBetween,
   overlaps,
   scheduleError,
+  statusAfterJoin,
 } from './meetings.logic';
 
-const at = (iso: string) => new Date(iso);
-const meeting = (overrides: Partial<{ status: 'scheduled' | 'live' | 'completed' | 'missed' | 'cancelled' }> = {}) => ({
-  status: 'scheduled' as const,
-  scheduled_at: at('2026-11-11T16:30:00+05:30'),
-  duration_minutes: 15,
-  ...overrides,
+const at = (time: string) => new Date(`2026-11-11T${time}:00+05:30`);
+const meeting = (status: MeetingStatus = 'scheduled', end = '10:30') => ({
+  status,
+  scheduled_at: at('10:00'),
+  scheduled_end_at: at(end),
 });
 
-describe('joinWindow', () => {
-  it('opens 10 minutes early and closes 30 minutes after the end', () => {
-    const window = joinWindow(at('2026-11-11T16:30:00+05:30'), 15);
-    expect(window.opens_at.toISOString()).toBe('2026-11-11T10:50:00.000Z');
-    expect(window.closes_at.toISOString()).toBe('2026-11-11T11:45:00.000Z');
+describe('meeting lifecycle (10:00 to 10:30, reminder at 10:25)', () => {
+  it('10:00: participants can join and the first join makes it in_progress', () => {
+    expect(canJoin(meeting(), at('10:00'))).toBe(true);
+    expect(statusAfterJoin('scheduled', at('10:30'), at('10:00'))).toBe('in_progress');
   });
 
-  it('ends after the duration', () => {
-    expect(endsAt(at('2026-11-11T16:30:00+05:30'), 20).toISOString()).toBe('2026-11-11T11:20:00.000Z');
+  it('opens a 10-minute lobby before the start, not earlier', () => {
+    expect(canJoin(meeting(), at('09:50'))).toBe(true);
+    expect(joinBlockReason(meeting(), at('09:45'))?.code).toBe('MEETING_NOT_OPEN');
+  });
+
+  it('10:25: the five-minute reminder is due once', () => {
+    expect(endReminderDue({ ...meeting('in_progress'), end_reminder_sent_at: null }, at('10:25'))).toBe(true);
+    expect(endReminderDue({ ...meeting('in_progress'), end_reminder_sent_at: at('10:25') }, at('10:26'))).toBe(false);
+    expect(endReminderDue({ ...meeting('in_progress'), end_reminder_sent_at: null }, at('10:20'))).toBe(false);
+  });
+
+  it('does not send the end reminder for a meeting nobody joined', () => {
+    expect(endReminderDue({ ...meeting('scheduled'), end_reminder_sent_at: null }, at('10:25'))).toBe(false);
+  });
+
+  it('10:30: an in-progress meeting becomes time_exceeded and is not closed', () => {
+    expect(isOverTime(meeting('in_progress'), at('10:30'))).toBe(true);
+    expect(isOverTime(meeting('in_progress'), at('10:29'))).toBe(false);
+  });
+
+  it('after 10:30 a running meeting stays joinable until the host ends it', () => {
+    expect(canJoin(meeting('time_exceeded'), at('11:45'))).toBe(true);
+    expect(canJoin(meeting('in_progress'), at('13:00'))).toBe(true);
+  });
+
+  it('someone joining for the first time after the end goes straight to time_exceeded', () => {
+    expect(statusAfterJoin('scheduled', at('10:30'), at('10:40'))).toBe('time_exceeded');
+  });
+
+  it('a meeting nobody joined becomes missed 30 minutes after its end', () => {
+    expect(isNoShow(meeting(), at('11:00'))).toBe(false);
+    expect(isNoShow(meeting(), at('11:01'))).toBe(true);
+    expect(joinBlockReason(meeting(), at('11:01'))?.code).toBe('MEETING_ENDED');
+  });
+
+  it('completed, missed and cancelled meetings can never be joined again', () => {
+    expect(joinBlockReason(meeting('completed'), at('10:10'))?.code).toBe('MEETING_ENDED');
+    expect(joinBlockReason(meeting('missed'), at('10:10'))?.code).toBe('MEETING_ENDED');
+    expect(joinBlockReason(meeting('cancelled'), at('10:10'))?.code).toBe('MEETING_CANCELLED');
+  });
+
+  it('an empty meeting closes 15 minutes after the last person left, only after the end time', () => {
+    expect(closesWhenEmpty(meeting('time_exceeded'), 0, at('10:40'), at('10:55'))).toBe(true);
+    expect(closesWhenEmpty(meeting('time_exceeded'), 0, at('10:40'), at('10:54'))).toBe(false);
+    expect(closesWhenEmpty(meeting('time_exceeded'), 1, at('10:40'), at('11:30'))).toBe(false);
+    expect(closesWhenEmpty(meeting('in_progress'), 0, at('10:05'), at('10:25'))).toBe(false);
   });
 });
 
-describe('canJoin and joinBlockReason', () => {
-  it('lets people in during the window', () => {
-    expect(canJoin(meeting(), at('2026-11-11T16:25:00+05:30'))).toBe(true);
-    expect(joinBlockReason(meeting(), at('2026-11-11T16:25:00+05:30'))).toBeNull();
+describe('extension', () => {
+  it('adds minutes to the scheduled end while still before it', () => {
+    expect(extendedEnd(at('10:30'), 10, at('10:26')).toISOString()).toBe(at('10:40').toISOString());
   });
 
-  it('keeps a live meeting open until the grace time ends', () => {
-    expect(canJoin(meeting({ status: 'live' }), at('2026-11-11T17:10:00+05:30'))).toBe(true);
+  it('counts from now once the end has passed', () => {
+    expect(extendedEnd(at('10:30'), 10, at('10:35')).toISOString()).toBe(at('10:45').toISOString());
   });
 
-  it('says the meeting is not open yet before the window', () => {
-    expect(canJoin(meeting(), at('2026-11-11T16:10:00+05:30'))).toBe(false);
-    expect(joinBlockReason(meeting(), at('2026-11-11T16:10:00+05:30'))?.code).toBe('MEETING_NOT_OPEN');
-  });
-
-  it('says the meeting has ended after the window', () => {
-    expect(joinBlockReason(meeting(), at('2026-11-11T17:16:00+05:30'))?.code).toBe('MEETING_ENDED');
-  });
-
-  it('blocks cancelled and finished meetings at any time', () => {
-    const during = at('2026-11-11T16:30:00+05:30');
-    expect(joinBlockReason(meeting({ status: 'cancelled' }), during)?.code).toBe('MEETING_CANCELLED');
-    expect(joinBlockReason(meeting({ status: 'completed' }), during)?.code).toBe('MEETING_ENDED');
-    expect(joinBlockReason(meeting({ status: 'missed' }), during)?.code).toBe('MEETING_ENDED');
-    expect(canJoin(meeting({ status: 'cancelled' }), during)).toBe(false);
+  it('allows 120 extra minutes in total', () => {
+    expect(extensionError(110, 10)).toBeNull();
+    expect(extensionError(115, 10)).toContain('120');
   });
 });
 
-describe('overlaps', () => {
-  const start = at('2026-11-11T16:30:00+05:30');
-
-  it('finds meetings that share any minute', () => {
-    expect(overlaps(start, 15, at('2026-11-11T16:40:00+05:30'), 15)).toBe(true);
-    expect(overlaps(at('2026-11-11T16:20:00+05:30'), 15, start, 15)).toBe(true);
+describe('actual duration is tracked apart from the booked length', () => {
+  it('runs to now while the meeting is live and stops at the end', () => {
+    const started = { started_at: at('10:02'), ended_at: null, status: 'time_exceeded' as MeetingStatus };
+    expect(actualMinutes(started, at('10:50'))).toBe(48);
+    expect(actualMinutes({ ...started, ended_at: at('10:41'), status: 'completed' }, at('12:00'))).toBe(39);
+    expect(actualMinutes({ started_at: null, ended_at: null, status: 'scheduled' }, at('10:10'))).toBeNull();
   });
 
-  it('allows back-to-back meetings', () => {
-    expect(overlaps(start, 15, at('2026-11-11T16:45:00+05:30'), 15)).toBe(false);
-    expect(overlaps(at('2026-11-11T16:15:00+05:30'), 15, start, 15)).toBe(false);
+  it('counts whole minutes', () => {
+    expect(minutesBetween(at('10:00'), new Date(at('10:12').getTime() + 20_000))).toBe(12);
   });
 });
 
-describe('scheduleError', () => {
-  const now = at('2026-11-04T10:00:00+05:30');
+describe('booking rules', () => {
+  const now = at('09:00');
 
-  it('accepts a time later today', () => {
-    expect(scheduleError(at('2026-11-04T16:00:00+05:30'), now)).toBeNull();
-  });
-
-  it('accepts now, allowing a minute of clock drift', () => {
-    expect(scheduleError(at('2026-11-04T09:59:30+05:30'), now)).toBeNull();
-  });
-
-  it('refuses a time that has passed', () => {
-    expect(scheduleError(at('2026-11-04T09:30:00+05:30'), now)).toEqual({
-      field: 'scheduled_at',
-      message: 'The meeting time has already passed',
-    });
-  });
-
-  it('refuses more than 60 days ahead', () => {
-    expect(scheduleError(at('2027-01-05T10:00:00+05:30'), now)?.field).toBe('scheduled_at');
-  });
-
-  it('refuses an invalid date', () => {
+  it('accepts a later time and refuses the past or more than 60 days ahead', () => {
+    expect(scheduleError(at('10:00'), now)).toBeNull();
+    expect(scheduleError(at('08:00'), now)?.message).toBe('The meeting time has already passed');
+    expect(scheduleError(new Date('2027-02-01T10:00:00+05:30'), now)?.field).toBe('scheduled_at');
     expect(scheduleError(new Date('nope'), now)?.message).toBe('scheduled_at must be a date and time');
   });
-});
 
-describe('helpers', () => {
-  it('builds an Agora-safe channel name under 64 characters', () => {
-    const name = channelName(1, 'a1b2c3d4e5f60718');
-    expect(name).toBe('tzs_1_a1b2c3d4e5f60718');
+  it('allows back-to-back meetings but not overlapping ones', () => {
+    expect(overlaps(at('10:00'), 30, at('10:30'), 15)).toBe(false);
+    expect(overlaps(at('10:00'), 30, at('10:20'), 15)).toBe(true);
+  });
+
+  it('builds a channel name Agora accepts', () => {
+    expect(channelName(1, 'a1b2c3d4e5f60718')).toBe('tzs_1_a1b2c3d4e5f60718');
     expect(channelName(1, 'x'.repeat(80)).length).toBeLessThan(64);
   });
 
-  it('counts whole minutes between two times', () => {
-    expect(minutesBetween(at('2026-11-11T16:30:00+05:30'), at('2026-11-11T16:42:20+05:30'))).toBe(12);
-    expect(minutesBetween(null, at('2026-11-11T16:42:20+05:30'))).toBeNull();
-  });
-
-  it('closes a live meeting as completed and an unjoined one as missed', () => {
-    expect(expiredStatus({ status: 'live' })).toBe('completed');
-    expect(expiredStatus({ status: 'scheduled' })).toBe('missed');
-  });
-
-  it('formats the time in the school time zone', () => {
-    expect(formatMeetingTime(at('2026-11-11T11:00:00Z'), 'Asia/Kolkata').toLowerCase()).toBe('11 nov, 4:30 pm');
+  it('formats times in the school time zone', () => {
+    expect(formatMeetingTime(at('16:30'), 'Asia/Kolkata').toLowerCase()).toBe('11 nov, 4:30 pm');
   });
 });
 
 describe('AgoraTokenService', () => {
-  const config = (appId: string, cert: string) => ({
-    agoraAppId: appId,
-    agoraAppCertificate: cert,
-    tokenTtlSeconds: 3600,
-  });
-  const hex = 'a'.repeat(32);
-  const now = at('2026-11-11T16:25:00+05:30');
+  const config = (overrides: Partial<Record<string, string | number>> = {}) =>
+    ({
+      agoraAppId: 'a'.repeat(32),
+      agoraAppCertificate: 'b'.repeat(32),
+      tokenTtlSeconds: 900,
+      customerId: '',
+      customerSecret: '',
+      restUrl: 'https://api.sd-rtn.com',
+      webhookSecret: '',
+      timeoutMs: 1000,
+      ...overrides,
+    }) as never;
+  const now = at('10:00');
 
-  it('refuses with VIDEO_NOT_CONFIGURED when the keys are missing', () => {
-    const service = new AgoraTokenService(config('', ''));
-    expect(service.enabled).toBe(false);
+  afterEach(() => jest.restoreAllMocks());
+
+  it('refuses with 503 VIDEO_NOT_CONFIGURED without keys', () => {
+    const service = new AgoraTokenService(config({ agoraAppId: '', agoraAppCertificate: '' }));
     try {
-      service.issue('tzs_1_abc', 9, at('2026-11-11T17:15:00+05:30'), now);
+      service.issue('tzs_1_abc', 9, now);
       fail('expected an error');
     } catch (error) {
       expect(error).toBeInstanceOf(AppException);
       expect((error as AppException).getStatus()).toBe(503);
-      expect(((error as AppException).getResponse() as { code: string }).code).toBe('VIDEO_NOT_CONFIGURED');
     }
   });
 
-  it('issues a version 007 RTC token that lasts until the meeting closes', () => {
-    const service = new AgoraTokenService(config(hex, 'b'.repeat(32)));
-    const grant = service.issue('tzs_1_abc', 9, at('2026-11-11T17:15:00+05:30'), now);
-    expect(grant.app_id).toBe(hex);
+  it('issues a short-lived 007 token for the user uid', () => {
+    const grant = new AgoraTokenService(config()).issue('tzs_1_abc', 9, now);
     expect(grant.token.startsWith('007')).toBe(true);
-    expect(grant.expires_at.toISOString()).toBe('2026-11-11T11:45:00.000Z');
+    expect(grant.expires_at.getTime() - now.getTime()).toBe(900_000);
   });
 
-  it('never issues a token longer than AGORA_TOKEN_TTL_SECONDS', () => {
-    const service = new AgoraTokenService(config(hex, 'b'.repeat(32)));
-    const grant = service.issue('tzs_1_abc', 9, at('2026-11-12T16:25:00+05:30'), now);
-    expect(grant.expires_at.getTime() - now.getTime()).toBe(3600 * 1000);
+  it('cannot remove participants without the Customer ID and Secret', async () => {
+    const service = new AgoraTokenService(config());
+    expect(service.canRemoveParticipants).toBe(false);
+    expect((await service.endChannel('tzs_1_abc')).ok).toBe(false);
+  });
+
+  it('ends a channel with a channel-wide join_channel ban (Basic auth)', async () => {
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ status: 'success', id: 1953 }), { status: 200 }));
+    const service = new AgoraTokenService(config({ customerId: 'customer-id', customerSecret: 'customer-secret' }));
+    const result = await service.endChannel('tzs_1_abc');
+    expect(result).toEqual({ ok: true, rule_id: '1953' });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://api.sd-rtn.com/dev/v1/kicking-rule');
+    expect((init as RequestInit).headers).toMatchObject({
+      authorization: `Basic ${Buffer.from('customer-id:customer-secret').toString('base64')}`,
+    });
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      appid: 'a'.repeat(32),
+      cname: 'tzs_1_abc',
+      time: 1440,
+      privileges: ['join_channel'],
+    });
+  });
+
+  it('reports an Agora refusal instead of throwing', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ message: 'invalid appid' }), { status: 401 }));
+    const service = new AgoraTokenService(config({ customerId: 'customer-id', customerSecret: 'customer-secret' }));
+    const result = await service.endChannel('tzs_1_abc');
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('401');
+  });
+});
+
+describe('Agora webhook signature', () => {
+  const body = JSON.stringify({ noticeId: 'n1', eventType: 107, payload: { channelName: 'tzs_1_abc', uid: 9 } });
+  const sign = (secret: string) => createHmac('sha256', secret).update(body).digest('hex');
+
+  it('accepts the HMAC-SHA256 hex of the raw body', () => {
+    expect(agoraSignatureValid(body, sign('webhook-secret-123'), 'webhook-secret-123')).toBe(true);
+    expect(agoraSignatureValid(Buffer.from(body), sign('webhook-secret-123').toUpperCase(), 'webhook-secret-123')).toBe(
+      true,
+    );
+  });
+
+  it('rejects a wrong or missing signature', () => {
+    expect(agoraSignatureValid(body, sign('other-secret'), 'webhook-secret-123')).toBe(false);
+    expect(agoraSignatureValid(body, undefined, 'webhook-secret-123')).toBe(false);
+    expect(agoraSignatureValid(`${body} `, sign('webhook-secret-123'), 'webhook-secret-123')).toBe(false);
   });
 });
