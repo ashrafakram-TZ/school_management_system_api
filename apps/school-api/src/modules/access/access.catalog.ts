@@ -27,6 +27,7 @@ export const PERMISSIONS = {
   EXAMS_MANAGE: 'exams.manage',
   NOTIFICATIONS_VIEW: 'notifications.view',
   NOTIFICATIONS_SEND: 'notifications.send',
+  MEETINGS_VIEW: 'meetings.view',
   FLEET_VIEW: 'fleet.view',
   FLEET_MANAGE: 'fleet.manage',
 } as const;
@@ -68,6 +69,11 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
   { code: PERMISSIONS.EXAMS_MANAGE, name: 'Create exams, enter marks and publish results', group: 'Exams' },
   { code: PERMISSIONS.NOTIFICATIONS_VIEW, name: 'View sent notifications and the SMS outbox', group: 'Communication' },
   { code: PERMISSIONS.NOTIFICATIONS_SEND, name: 'Send notifications and test messages', group: 'Communication' },
+  {
+    code: PERMISSIONS.MEETINGS_VIEW,
+    name: 'See teacher and parent video meetings and their call log',
+    group: 'Communication',
+  },
   { code: PERMISSIONS.FLEET_VIEW, name: 'See buses on the map and their live status', group: 'Fleet' },
   { code: PERMISSIONS.FLEET_MANAGE, name: 'Manage buses, routes and stops', group: 'Fleet' },
 ];
@@ -135,6 +141,7 @@ export const ROLE_CATALOG: RoleDefinition[] = [
       PERMISSIONS.EXAMS_VIEW,
       PERMISSIONS.NOTIFICATIONS_VIEW,
       PERMISSIONS.NOTIFICATIONS_SEND,
+      PERMISSIONS.MEETINGS_VIEW,
       PERMISSIONS.FLEET_VIEW,
     ],
   },
@@ -160,6 +167,7 @@ export const ROLE_CATALOG: RoleDefinition[] = [
       PERMISSIONS.EXAMS_VIEW,
       PERMISSIONS.NOTIFICATIONS_VIEW,
       PERMISSIONS.NOTIFICATIONS_SEND,
+      PERMISSIONS.MEETINGS_VIEW,
       PERMISSIONS.FLEET_VIEW,
     ],
   },

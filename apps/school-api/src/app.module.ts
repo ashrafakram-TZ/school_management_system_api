@@ -19,6 +19,7 @@ import { SmsModule } from './modules/sms/sms.module';
 import { StudentsModule } from './modules/students/students.module';
 import { FleetModule } from './modules/fleet/fleet.module';
 import { FleetOpsModule } from './modules/fleet-ops/fleet-ops.module';
+import { MeetingsModule } from './modules/meetings/meetings.module';
 import { MobileModule } from './modules/mobile/mobile.module';
 import { SecurityModule } from './modules/security/security.module';
 import { StaffModule } from './modules/staff/staff.module';
@@ -62,6 +63,7 @@ import { UsersModule } from './modules/users/users.module';
     TransportModule,
     TrackingModule,
     AchievementsModule,
+    MeetingsModule,
     MobileModule,
     FleetModule,
     FleetOpsModule,

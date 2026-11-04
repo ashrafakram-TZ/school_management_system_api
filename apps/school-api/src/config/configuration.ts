@@ -96,6 +96,12 @@ export const telematicsConfig = registerAs('telematics', () => ({
   webhookSecret: process.env.TELEMATICS_WEBHOOK_SECRET ?? '',
 }));
 
+export const videoConfig = registerAs('video', () => ({
+  agoraAppId: process.env.AGORA_APP_ID ?? '',
+  agoraAppCertificate: process.env.AGORA_APP_CERTIFICATE ?? '',
+  tokenTtlSeconds: Number(process.env.AGORA_TOKEN_TTL_SECONDS ?? 3600),
+}));
+
 export const securityConfig = registerAs('security', () => ({
   biometricWebhookKey: process.env.BIOMETRIC_WEBHOOK_KEY ?? '',
   qrSigningSecret: process.env.QR_SIGNING_SECRET ?? '',
@@ -118,6 +124,7 @@ export type StorageConfig = ConfigType<typeof storageConfig>;
 export type QueueConfig = ConfigType<typeof queueConfig>;
 export type SecurityConfig = ConfigType<typeof securityConfig>;
 export type TelematicsConfig = ConfigType<typeof telematicsConfig>;
+export type VideoConfig = ConfigType<typeof videoConfig>;
 
 export const ALL_CONFIGS = [
   appConfig,
@@ -131,5 +138,6 @@ export const ALL_CONFIGS = [
   storageConfig,
   securityConfig,
   telematicsConfig,
+  videoConfig,
   queueConfig,
 ];

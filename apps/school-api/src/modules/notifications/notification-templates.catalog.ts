@@ -17,6 +17,8 @@ export const TEMPLATES = {
   SAFETY_ALERT_HIGH: 'SAFETY_ALERT_HIGH',
   DIARY_POSTED: 'DIARY_POSTED',
   MEETING_REMINDER: 'MEETING_REMINDER',
+  MEETING_SCHEDULED: 'MEETING_SCHEDULED',
+  MEETING_CANCELLED: 'MEETING_CANCELLED',
   CHAT_MESSAGE: 'CHAT_MESSAGE',
   STAFF_LEAVE_STATUS: 'STAFF_LEAVE_STATUS',
   LEAVE_APPROVAL_NEEDED: 'LEAVE_APPROVAL_NEEDED',
@@ -352,6 +354,44 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
         body: '{{student}} குறித்து {{host}} உடனான உங்கள் கூட்டம் {{time}} மணிக்குத் தொடங்கும். இணைய செயலியைத் திறக்கவும்.',
         sms_body:
           'நினைவூட்டல்: {{student}} குறித்து {{host}} உடனான கூட்டம் {{time}} மணிக்குத் தொடங்கும். செயலியில் இணையவும். -TAMILZOROUS',
+      },
+    },
+  },
+  {
+    code: TEMPLATES.MEETING_SCHEDULED,
+    category: 'meeting',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: 'New meeting on {{time}}',
+        body: '{{by}} booked a video meeting about {{student}} on {{time}}: {{title}}.',
+        sms_body: null,
+      },
+      ta: {
+        title: '{{time}} அன்று புதிய கூட்டம்',
+        body: '{{student}} குறித்து {{by}} {{time}} அன்று வீடியோ கூட்டம் பதிவு செய்துள்ளார்: {{title}}.',
+        sms_body: null,
+      },
+    },
+  },
+  {
+    code: TEMPLATES.MEETING_CANCELLED,
+    category: 'meeting',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: 'Meeting cancelled',
+        body: '{{by}} cancelled the meeting about {{student}} on {{time}}.{{reason}}',
+        sms_body: null,
+      },
+      ta: {
+        title: 'கூட்டம் ரத்து செய்யப்பட்டது',
+        body: '{{time}} அன்று {{student}} குறித்த கூட்டத்தை {{by}} ரத்து செய்தார்.{{reason}}',
+        sms_body: null,
       },
     },
   },

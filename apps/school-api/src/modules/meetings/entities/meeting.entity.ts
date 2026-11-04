@@ -1,0 +1,64 @@
+import { SchoolScopedEntity } from '@app/common';
+import { Column, Entity, Index } from 'typeorm';
+
+export const MEETING_STATUSES = ['scheduled', 'live', 'completed', 'missed', 'cancelled'] as const;
+export type MeetingStatus = (typeof MEETING_STATUSES)[number];
+
+export const MEETING_PARTIES = ['teacher', 'parent'] as const;
+export type MeetingParty = (typeof MEETING_PARTIES)[number];
+
+@Entity('meetings')
+@Index('IDX_meetings_school_scheduled', ['school_id', 'scheduled_at'])
+export class Meeting extends SchoolScopedEntity {
+  @Index()
+  @Column({ type: 'int' })
+  student_id: number;
+
+  @Index()
+  @Column({ type: 'int' })
+  teacher_user_id: number;
+
+  @Index()
+  @Column({ type: 'int' })
+  parent_user_id: number;
+
+  @Column({ type: 'varchar', length: 10 })
+  scheduled_by: MeetingParty;
+
+  @Column({ type: 'varchar', length: 150 })
+  title: string;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  agenda: string | null;
+
+  @Column({ type: 'timestamptz' })
+  scheduled_at: Date;
+
+  @Column({ type: 'smallint', default: 15 })
+  duration_minutes: number;
+
+  @Column({ type: 'varchar', length: 12, default: 'scheduled' })
+  status: MeetingStatus;
+
+  @Index({ unique: true })
+  @Column({ type: 'varchar', length: 64 })
+  channel_name: string;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  started_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  ended_at: Date | null;
+
+  @Column({ type: 'int', nullable: true })
+  ended_by: number | null;
+
+  @Column({ type: 'int', nullable: true })
+  cancelled_by: number | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  cancel_reason: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  reminder_sent_at: Date | null;
+}

@@ -95,6 +95,25 @@ export class EnvironmentVariables {
   TELEMATICS_TIMEOUT_MS: number = 5000;
 
   @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => Boolean(env.AGORA_APP_ID))
+  @Matches(/^[0-9a-f]{32}$/i, {
+    message:
+      'AGORA_APP_ID must be the 32-character App ID from the Agora console, or left empty to switch video calls off',
+  })
+  AGORA_APP_ID?: string;
+
+  @ValidateIf((env: EnvironmentVariables) => Boolean(env.AGORA_APP_ID))
+  @Matches(/^[0-9a-f]{32}$/i, {
+    message: 'AGORA_APP_CERTIFICATE must be the 32-character primary certificate of the Agora project',
+  })
+  AGORA_APP_CERTIFICATE?: string;
+
+  @IsInt()
+  @Min(300)
+  @Max(86400)
+  AGORA_TOKEN_TTL_SECONDS: number = 3600;
+
+  @IsOptional()
   @MinLength(32, {
     message: 'TELEMATICS_WEBHOOK_SECRET must match TRIP_WEBHOOK_SECRET in the Telematics service (32+ characters)',
   })

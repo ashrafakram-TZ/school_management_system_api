@@ -58,6 +58,7 @@ const TAGS: [string, string][] = [
   ['Admin · Users', 'Users, roles assignment and insights'],
   ['Admin · Roles', 'Roles and permissions'],
   ['Admin · Notifications', 'Outbox, delivery insights, templates and test sends'],
+  ['Admin · Meetings', 'Teacher and parent video meetings (Agora, booked in the app): who with whom, status, call log'],
   ['Admin · Fleet', 'Live bus status and positions, read from the Telematics service'],
   ['Health', 'Service status'],
 ];

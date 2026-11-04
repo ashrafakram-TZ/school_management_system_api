@@ -164,6 +164,12 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 | `ALERT_RESOLVED`, `ALERT_ALREADY_RESOLVED` | 409 | Alerts centre: the alert is already resolved |
 | `TICKET_CLOSED` | 409 | Fleet maintenance: the ticket is already done |
 | `TICKET_NOT_FOUND`, `FUEL_LOG_NOT_FOUND`, `TRACK_NOT_FOUND` | 404 | Fleet maintenance and trip replay: no such ticket or fuel entry, or the trip never reached the tracker |
+| `MEETING_NOT_FOUND` | 404 | Not your meeting, or it does not exist |
+| `MEETING_CLASH` | 409 | The teacher or the parent already has a meeting at that time |
+| `NO_PARENT_ACCOUNT` | 409 | Staff app: no parent of this student has the app yet |
+| `MEETING_NOT_OPEN`, `MEETING_ENDED`, `MEETING_CANCELLED` | 409 | Join: opens 10 minutes before the start; closed 30 minutes after the end, or cancelled |
+| `MEETING_NOT_LIVE`, `MEETING_NOT_CANCELLABLE` | 409 | End needs a live call; cancel only before it starts |
+| `VIDEO_NOT_CONFIGURED` | 503 | The server has no Agora keys yet |
 | `PAYMENT_EXCEEDS_BALANCE`, `DISCOUNT_TOO_HIGH`, `NO_PLAN_FOR_INSTALLMENT` | 400 | Fees: the amount is more than the invoice balance, the discount goes below what is paid, or no plan has that installment |
 | `INVOICE_PAID`, `INVOICE_CANCELLED`, `INVOICE_HAS_PAYMENTS` | 409 | Fees: nothing left to pay, the invoice is cancelled, or it has payments and cannot be cancelled |
 | `FEE_HEAD_EXISTS`, `TRANSPORT_HEAD_EXISTS`, `FEE_HEAD_IN_USE` | 409 | Fees: head code taken, a transport head already exists, or the head is on plans or invoices |
@@ -461,6 +467,38 @@ Parents get `FEE_DUE` (category `fees`) when the school raises an invoice, and `
 ### Admin web
 
 `/admin/fees/heads` (CRUD; one transport head), `/admin/fees/plans` and `/admin/fees/plans/{classId}` (`GET`, `PUT` the lines of a class: head, installment, amount, due date), `/admin/fees/installments`, `POST /admin/fees/invoices/generate` `{ class_id?, installment, due_date? }` (safe to run again), `/admin/fees/invoices` (search, `status`, `class_id`, `section_id`, `installment`, `overdue`), `/admin/fees/invoices/{id}`, `PATCH .../discount`, `POST .../cancel`, `POST .../payments`, `/admin/fees/payments` (+ `/summary`, `from`, `to`, `mode`), `/admin/fees/payments/{id}/receipt`, `/admin/fees/insights` and `/admin/students/{id}/fees`. Transport line on an invoice = stop `monthly_fee` × months since the previous installment's due date (the year start for the first one), at least 1. Permissions `fees.view` (Principal, AO) and `fees.manage` (AO).
+
+## Video meetings (Agora)
+
+A teacher and a parent book a short video call about one child. Either side can book it; both join from the app with the Agora SDK (`agora_rtc_engine` in Flutter). The admin web only lists meetings and their call log; it never joins a call.
+
+Flow: book → `MEETING_SCHEDULED` push to the other person → `MEETING_REMINDER` 10 minutes before (SMS if push fails) → join opens 10 minutes before the start → the first join makes it `live` → `end` makes it `completed`. A meeting nobody joins becomes `missed` 30 minutes after its end; a live one is closed as `completed` then. Status: `scheduled`, `live`, `completed`, `missed`, `cancelled`.
+
+Every meeting has `from` (who booked) and `to` (who it was booked with), plus `teacher`, `parent`, `student`, `can_join`, `join_opens_at`, `join_closes_at` and `call_minutes`.
+
+### Staff app (Teacher, HOD, Principal)
+
+| Call | Screen |
+|---|---|
+| `GET /mobile/teacher/meetings?scope=upcoming` | My meetings; `scope` is `upcoming` (default, soonest first), `past` or `all` |
+| `GET /mobile/teacher/students/{id}/parents` | Parents of the student who have the app, primary first |
+| `POST /mobile/teacher/meetings` | `{ "student_id": 12, "parent_user_id": 31, "title": "Maths progress", "agenda": null, "scheduled_at": "2026-11-11T16:30:00+05:30", "duration_minutes": 15 }`. `parent_user_id` is optional (primary parent). 5 to 60 minutes, up to 60 days ahead |
+| `GET /mobile/teacher/meetings/{id}` | One meeting with `call_log` |
+| `POST /mobile/teacher/meetings/{id}/join` | `{ "platform": "android" }` → `{ provider, app_id, channel_name, uid, token, expires_at, meeting }` |
+| `POST /mobile/teacher/meetings/{id}/token` | Fresh token during a call (on `onTokenPrivilegeWillExpire`) |
+| `POST /mobile/teacher/meetings/{id}/leave` | I left; the meeting stays open so I can rejoin |
+| `POST /mobile/teacher/meetings/{id}/end` | End the call for both |
+| `POST /mobile/teacher/meetings/{id}/cancel` | `{ "reason": "..." }` before it starts; the parent is told |
+
+### Parent app
+
+`GET /mobile/parent/meetings` (all children, optional `student_id`), `GET /mobile/parent/children/{id}/teachers` (class teacher first, with subjects), `POST /mobile/parent/children/{id}/meetings` `{ "teacher_user_id": 9, "title": "...", "scheduled_at": "...", "duration_minutes": 15 }`, and the same `GET /mobile/parent/meetings/{id}`, `join`, `token`, `leave`, `end`, `cancel` as the staff app.
+
+Join with the SDK: `engine.initialize(RtcEngineContext(appId: app_id))`, then `engine.joinChannel(token: token, channelId: channel_name, uid: uid, options: ...)`. Call `leave` when the user hangs up and `end` to finish for both.
+
+### Admin web
+
+`GET /admin/meetings` (search topic, teacher, parent or student; `status`, `when` today/upcoming/past, `scheduled_by`, `teacher_user_id`, `guardian_id`, `student_id`, `date_from`, `date_to`; sort `scheduled_at`, `created_at`, `status`, `title`), `GET /admin/meetings/insights` and `GET /admin/meetings/{id}` with the call log. Permission `meetings.view` (Admin, Principal, AO). Server settings: `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE` (Agora console → project → primary certificate) and `AGORA_TOKEN_TTL_SECONDS`.
 
 ## Payslips (every staff app)
 
