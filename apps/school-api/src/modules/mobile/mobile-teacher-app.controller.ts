@@ -45,7 +45,9 @@ export class MobileTeacherAppController {
       '| PROXY_TODAY | Proxy periods given to the teacher today | info | timetable |',
       '| COMBINED_CLASS_TODAY | Students of another section sit in the teacher’s class today | info | timetable |',
       '| LEAVE_REQUESTS_PENDING | Parent leave requests waiting for the class teacher | info | student_leaves |',
+      '| STAFF_LEAVE_APPROVALS | Staff leave waiting for me as HOD or principal | info | staff_leave_approvals |',
       '| UNREAD_ALERTS | Unread in-app notifications | info | notifications |',
+      '| SCHOOL_BANNER | Image banner posted by the school office (event, holiday, notice); always after the alerts. Show `image_url`; open `action.params.url` when screen is link | info | link or home |',
     ].join('\n'),
   })
   @ApiEnvelope(BannerListDto)
@@ -144,5 +146,28 @@ export class MobileParentAchievementsController {
   @ApiEnvelope(AchievementDto, { isArray: true })
   async list(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
     return this.achievements.list(await this.access.childSchool(user.id, id), id, { parent: true });
+  }
+}
+
+@ApiTags('Mobile · Parent')
+@ApiBearerAuth()
+@ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
+@RequireRoles(ROLES.PARENT)
+@Controller('mobile/parent')
+export class MobileParentBannerController {
+  constructor(
+    private readonly access: MobileAccessService,
+    private readonly banner: BannerService,
+  ) {}
+
+  @Get('banner')
+  @ApiOperation({
+    summary: 'Image banners for the Parent app home screen (events, holidays, notices)',
+    description:
+      'Live banners the school office posted for parents or everyone, in the order the office set. Each item has code SCHOOL_BANNER, title, message, image_url, thumbnail_url and action (link with params.url, or home). Empty list when there is nothing to show.',
+  })
+  @ApiEnvelope(BannerListDto)
+  banners(@CurrentUser() user: AuthUser) {
+    return this.banner.parent(this.access.teacherSchool(user));
   }
 }

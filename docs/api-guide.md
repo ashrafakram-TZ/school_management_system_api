@@ -29,7 +29,7 @@ Sign-in uses the central **Tamilzorous Auth Service** for the OTP (`AUTH_PROVIDE
 
 - `POST /auth/otp/request`: we check the number is an active user here, then the Auth Service sends the SMS (valid **15 minutes**, resend after 30 seconds). A user the Auth Service does not know yet is registered there automatically on this first request (name, mobile, email; staff and parents without an email get `firstname.lastname.1234@school.tamilzorous.com`).
 - `POST /auth/otp/verify`: the Auth Service checks the code; this API then issues the school session (`access_token`, `refresh_token`) with school and roles.
-- `POST /auth/refresh` and `POST /auth/logout` stay in this API until the Auth Service adds refresh and logout.
+- `POST /auth/refresh` also renews the Auth Service sign-in (its refresh token is kept encrypted on our session). If the Auth Service says the sign-in has ended, the answer is `401 SESSION_REVOKED` and the user signs in again; if it cannot be reached, `503 AUTH_SERVICE_UNAVAILABLE` and the app can retry. `POST /auth/logout` signs out here and at the Auth Service. Apps keep using only this API's tokens.
 - Deactivating a user here blocks OTP and ends every session at once.
 
 ### Which app can sign in
@@ -351,6 +351,19 @@ Sign in as 9000000004 (Priya, class teacher of 6-A) to try it.
 | `GET` / `POST /mobile/teacher/students/{id}/achievements` | List or add an achievement: `{ "title": "Inter-school football", "category": "sports", "level": "district", "result": "winner", "event_scope": "inter_school", "venue_type": "outdoor", "participation": "team", "team_name": "U-14 team", "prize_received": "Trophy", "school_reward": "Medal", "achieved_on": "2026-10-24" }`. Sports needs `venue_type`. Parents are told |
 | `GET /mobile/teacher/sections/{id}/activity-ranking` | My section ranked by sports and activity points (default all non-academic; `?category=sports` for sports only) |
 | `GET /mobile/teacher/banner` | Home alert banner: `{ date, banners: [{ code, severity, title, message, count?, action: { screen, params? } }] }`, most important first. Codes: `HOLIDAY_TODAY`, `ON_LEAVE_TODAY`, `CHECK_IN_PENDING`, `ATTENDANCE_NOT_MARKED` (`params.section_id`), `PROXY_TODAY`, `COMBINED_CLASS_TODAY`, `LEAVE_REQUESTS_PENDING`, `UNREAD_ALERTS`. Empty list = nothing to show |
+| `GET /mobile/teacher/sections/{id}/students?sort=&order=` | Roster sorted by `roll_no` (default), `name` or `rank` (latest published exam, or `exam_id`), `asc` or `desc`; each student has `rank`. Students without a roll number or rank come last |
+| `GET /mobile/teacher/sections/{id}/benches?sort=&order=&groups=3` | Bench-wise view: the sorted roster split into `groups` (2–9, default 3) labelled First, Second … Last. 30 students give 10, 10, 10; 31 give 11, 10, 10 |
+| `GET /mobile/teacher/payslips?year=&month=` | My final payslips, newest first, filtered by year and/or month (1–12) |
+| `GET /mobile/teacher/payslips/periods` | Years and months that have a payslip (net per month, total per year) to fill the year and month filters |
+| `GET /mobile/teacher/payslips/{id}` | Payslip preview: `earnings[]` and `deductions[]` lines, working, paid and LOP days, gross, net and `pdf_path`; another person’s payslip returns `404 PAYSLIP_NOT_FOUND` |
+| `GET /mobile/teacher/payslips/{id}/pdf` | Payslip PDF download. The same four calls also exist under `/me/payslips` for every staff role |
+| `GET /mobile/teacher/profile` | Me screen header: designation, department, subjects, `is_hod`, `class_teacher_of`, weekly load and a ready `headline` ("Mathematics · HOD · Class teacher 6 - A") |
+| `GET /mobile/teacher/leaves/preview?leave_type_id=&from_date=&to_date=&half_day=` | Before applying: working days (Sundays and holidays left out), balance before and after, my periods on those days, morning-attendance sections, who decides first (`goes_to`) and a ready `message` |
+| `GET /mobile/teacher/classes` | Now also `periods_per_week`, `academic_year`, and for class-teacher sections `class_teacher_summary` (present and absent today, attendance marked, fees overdue and due, parent leave requests) |
+| `GET /mobile/teacher/sections/{id}/students` | Each student also has `today_status` (present, absent, late, half_day, leave, not_marked) |
+| `GET /mobile/teacher/timetable/today` | Substitute periods have `covering_for` (the teacher who is away) |
+| `GET /mobile/teacher/leave-approvals` | Each request also has `balance_remaining`, `affected_periods` and `affected_sections` |
+| `GET /mobile/teacher/check-in` | Also `school_latitude` and `school_longitude`, so the app can show the distance before checking in |
 | `GET /mobile/teacher/substitutions` | Classes I cover for absent teachers, today and the next 7 days: date, period and time, section, subject, room, who is away, note |
 
 Staff leave status moves `pending_hod` → `pending_principal` → `approved` (or `rejected` at any step). With no HOD in the department it starts at `pending_principal`.
@@ -451,6 +464,18 @@ Grades (CBSE-like, on the percentage): A1 91+, A2 81+, B1 71+, B2 61+, C1 51+, C
 ### Admin web
 
 `/admin/exams` (list, create with `class_ids`, `PATCH`, `DELETE` draft only), `/admin/exams/{id}/subjects` (`GET`, `PUT` the full list of papers), `/admin/exams/{id}/sections/{sectionId}/marks?subject_id=` (`GET`, `PUT`), `/admin/exams/{id}/sections/{sectionId}/results`, `/admin/exams/{id}/classes/{classId}/toppers?limit=3`, `/admin/exams/{id}/toppers` (top 3 of every class), `POST /admin/exams/{id}/publish` and `/admin/students/{id}/results`. Permissions `exams.view` (Principal, AO) and `exams.manage` (AO).
+
+## App banners (image banners on the home screen)
+
+The school office posts image banners (events, holidays, notices) in the admin web under Communication → App banners: image, title, short message, which app (`all`, `staff`, `parents`), first and last day, optional link and order. Only live banners (active and today between the dates) reach the apps, at most 5.
+
+| Call | Use |
+|---|---|
+| `GET /mobile/teacher/banner` | Alerts first, then the school banners with `code: "SCHOOL_BANNER"`, `image_url`, `thumbnail_url` and `action` (`link` with `params.url`, or `home`) |
+| `GET /mobile/parent/banner` | The school banners for parents, same item shape |
+| `/admin/app-banners` | List (filters `state` live/scheduled/ended/paused, `audience`, search), `insights`, add, edit (`is_active: false` pauses), delete. Upload the image first with `POST /files` (purpose `app_banner`) |
+
+Image links are signed and expire in about an hour, so take them from a fresh call instead of caching them.
 
 ## Sports and activities
 

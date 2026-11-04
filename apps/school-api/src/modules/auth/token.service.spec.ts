@@ -2,14 +2,16 @@ import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import { AppException } from '@app/common';
 import { AuthConfig } from '../../config/configuration';
+import { FieldCipher } from '../security/field-cipher';
 import { User } from '../users/entities/user.entity';
+import { CentralAuthClient, CentralSessionEnded } from './central-auth.client';
 import { UserSession } from './entities/user-session.entity';
 import { TokenService } from './token.service';
 
 const config = { accessSecret: 'y'.repeat(40), accessTtlSeconds: 900, refreshTtlDays: 30 } as AuthConfig;
 const user = { id: 4, school_id: 1, status: 'active' } as User;
 
-function setup() {
+function setup(central: Partial<CentralAuthClient> = {}) {
   const sessions = new Map<number, Partial<UserSession>>();
   const repo = {
     create: jest.fn((value) => value),
@@ -28,8 +30,15 @@ function setup() {
     findOneBy: jest.fn(async ({ id }: { id: number }) => sessions.get(id) ?? null),
   };
   const jwt = new JwtService({ secret: config.accessSecret, signOptions: { expiresIn: config.accessTtlSeconds } });
-  const service = new TokenService(repo as unknown as Repository<UserSession>, config, jwt);
-  return { service, sessions };
+  const cipher = new FieldCipher(Buffer.alloc(32, 7).toString('base64'));
+  const service = new TokenService(
+    repo as unknown as Repository<UserSession>,
+    config,
+    jwt,
+    central as CentralAuthClient,
+    cipher,
+  );
+  return { service, sessions, cipher };
 }
 
 const code = async (promise: Promise<unknown>) =>
@@ -78,5 +87,67 @@ describe('TokenService', () => {
   it('reports an invalid access token', async () => {
     const { service } = setup();
     expect(await code(service.verifyAccess('abc'))).toBe('TOKEN_INVALID');
+  });
+});
+
+describe('TokenService with the Auth Service', () => {
+  const tokens = { accessToken: 'central-access-1', refreshToken: 'central-refresh-1' };
+
+  it('keeps the Auth Service tokens encrypted on the session', async () => {
+    const { service, sessions, cipher } = setup();
+    const pair = await service.issue(user, {}, tokens);
+    const stored = sessions.get(pair.session_id)!;
+    expect(stored.central_refresh_enc).not.toContain('central-refresh-1');
+    expect(cipher.decrypt(stored.central_refresh_enc!)).toBe('central-refresh-1');
+  });
+
+  it('refreshes the Auth Service tokens together with ours', async () => {
+    const refresh = jest.fn(async () => ({ accessToken: 'central-access-2', refreshToken: 'central-refresh-2' }));
+    const { service, sessions, cipher } = setup({ refresh });
+    const first = await service.issue(user, {}, tokens);
+    await service.rotate(first.refresh_token, async () => user);
+    expect(refresh).toHaveBeenCalledWith('central-refresh-1');
+    expect(cipher.decrypt(sessions.get(first.session_id)!.central_refresh_enc!)).toBe('central-refresh-2');
+  });
+
+  it('ends our session when the Auth Service says the sign-in has ended', async () => {
+    const refresh = jest.fn(async () => {
+      throw new CentralSessionEnded();
+    });
+    const { service, sessions } = setup({ refresh });
+    const first = await service.issue(user, {}, tokens);
+    expect(await code(service.rotate(first.refresh_token, async () => user))).toBe('SESSION_REVOKED');
+    expect(sessions.get(first.session_id)!.revoked_at).toBeInstanceOf(Date);
+  });
+
+  it('keeps the session when the Auth Service is unreachable, so the app can retry', async () => {
+    const refresh = jest.fn(async () => {
+      throw AppException.unavailable('down', 'AUTH_SERVICE_UNAVAILABLE');
+    });
+    const { service, sessions } = setup({ refresh });
+    const first = await service.issue(user, {}, tokens);
+    expect(await code(service.rotate(first.refresh_token, async () => user))).toBe('AUTH_SERVICE_UNAVAILABLE');
+    expect(sessions.get(first.session_id)!.revoked_at).toBeUndefined();
+  });
+
+  it('logs out at the Auth Service, refreshing first when its access token has expired', async () => {
+    const logout = jest.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const refresh = jest.fn(async () => ({ accessToken: 'central-access-2', refreshToken: 'central-refresh-2' }));
+    const { service } = setup({ logout, refresh });
+    const first = await service.issue(user, {}, tokens);
+    await service.endCentral(first.session_id);
+    expect(logout).toHaveBeenNthCalledWith(1, 'central-access-1');
+    expect(logout).toHaveBeenNthCalledWith(2, 'central-access-2');
+  });
+
+  it('does not call the Auth Service for local sessions', async () => {
+    const refresh = jest.fn();
+    const logout = jest.fn();
+    const { service } = setup({ refresh, logout });
+    const first = await service.issue(user, {});
+    await service.rotate(first.refresh_token, async () => user);
+    await service.endCentral(first.session_id);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(logout).not.toHaveBeenCalled();
   });
 });

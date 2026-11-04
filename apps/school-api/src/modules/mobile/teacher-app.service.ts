@@ -16,7 +16,16 @@ import { StudentsService } from '../students/students.service';
 import { SubstitutesService } from '../substitutes/substitutes.service';
 import { DAY_NAMES } from '../timetable/dto/timetable.dto';
 import { TimetableService } from '../timetable/timetable.service';
-import { RosterStudentDto, StudentHistoryDto, TodayPeriodDto, TodayTimetableDto } from './dto/teacher-app.dto';
+import {
+  BenchPlanDto,
+  BenchQueryDto,
+  RosterQueryDto,
+  RosterStudentDto,
+  StudentHistoryDto,
+  TodayPeriodDto,
+  TodayTimetableDto,
+} from './dto/teacher-app.dto';
+import { groupLabel, sortRoster, splitIntoGroups } from './roster.logic';
 
 const nowClock = (timeZone: string) =>
   new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone }).format(new Date());
@@ -81,14 +90,28 @@ export class TeacherAppService {
         is_break: period.is_break,
         is_now: working && clock >= period.start_time && clock < period.end_time,
       };
-      const empty = { section: null, subject: null, room: null, students: 0, present: null, attendance_marked: false };
+      const empty = {
+        section: null,
+        subject: null,
+        room: null,
+        covering_for: null,
+        students: 0,
+        present: null,
+        attendance_marked: false,
+      };
       if (period.is_break || !working) return { ...base, ...empty, kind: period.is_break ? 'break' : 'free' };
       const slot = mine.find((item) => item.period_no === period.period_no);
       const cover = todayCovers.find((item) => item.period_no === period.period_no);
       const lesson = slot
-        ? { kind: 'class' as const, section: slot.section, subject: slot.subject, room: slot.room }
+        ? { kind: 'class' as const, section: slot.section, subject: slot.subject, room: slot.room, covering_for: null }
         : cover
-          ? { kind: 'substitute' as const, section: cover.section, subject: cover.subject, room: cover.room }
+          ? {
+              kind: 'substitute' as const,
+              section: cover.section,
+              subject: cover.subject,
+              room: cover.room,
+              covering_for: cover.absent_teacher,
+            }
           : null;
       if (!lesson) return { ...base, ...empty, kind: 'free' };
       const count = counts.find((row) => Number(row.section_id) === lesson.section.id);
@@ -167,22 +190,69 @@ export class TeacherAppService {
     };
   }
 
-  async roster(schoolId: number, sectionId: number, classTeacher: boolean): Promise<RosterStudentDto[]> {
-    const page = await this.students.list(schoolId, {
-      section_id: sectionId,
-      status: 'active',
-      sort: 'roll_no',
-      order: 'asc',
-      page: 1,
-      limit: 100,
-    });
+  async roster(
+    schoolId: number,
+    sectionId: number,
+    classTeacher: boolean,
+    query: RosterQueryDto = {},
+  ): Promise<RosterStudentDto[]> {
+    return (await this.rankedRoster(schoolId, sectionId, classTeacher, query)).students;
+  }
+
+  async benches(
+    schoolId: number,
+    sectionId: number,
+    classTeacher: boolean,
+    query: BenchQueryDto,
+  ): Promise<BenchPlanDto> {
+    const { students, exam } = await this.rankedRoster(schoolId, sectionId, classTeacher, query);
+    const parts = splitIntoGroups(students, query.groups ?? 3);
+    return {
+      sort: query.sort ?? 'roll_no',
+      order: query.order ?? 'asc',
+      exam,
+      total: students.length,
+      groups: parts.map((part, index) => ({
+        position: index + 1,
+        label: groupLabel(index, parts.length),
+        count: part.length,
+        students: part,
+      })),
+    };
+  }
+
+  private async rankedRoster(schoolId: number, sectionId: number, classTeacher: boolean, query: RosterQueryDto) {
+    const [page, ranking, todayRows] = await Promise.all([
+      this.students.list(schoolId, {
+        section_id: sectionId,
+        status: 'active',
+        sort: 'roll_no',
+        order: 'asc',
+        page: 1,
+        limit: 100,
+      }),
+      this.exams.sectionRanking(schoolId, sectionId, query.exam_id),
+      this.dataSource.query(
+        `SELECT r.student_id, r.status FROM attendance_sessions a JOIN attendance_records r ON r.session_id = a.id
+         WHERE a.section_id = $1 AND a.date = $2 AND a.period = 0`,
+        [sectionId, todayIn(this.app.timeZone)],
+      ) as Promise<{ student_id: number; status: string }[]>,
+    ]);
     const fees = classTeacher
       ? await this.fees.statusFor(
           schoolId,
           page.items.map((item) => item.id),
         )
       : null;
-    return page.items.map((item) => ({ ...item, fee: fees?.get(item.id) ?? null }));
+    const ranks = new Map(ranking.rows.map((row) => [row.student_id, row.rank]));
+    const today = new Map(todayRows.map((row) => [Number(row.student_id), row.status]));
+    const rows = page.items.map((item) => ({
+      ...item,
+      fee: fees?.get(item.id) ?? null,
+      rank: ranks.get(item.id) ?? null,
+      today_status: today.get(item.id) ?? 'not_marked',
+    }));
+    return { exam: ranking.exam, students: sortRoster(rows, query.sort ?? 'roll_no', query.order ?? 'asc') };
   }
 
   async isClassTeacherOf(schoolId: number, userId: number, studentId: number): Promise<boolean> {

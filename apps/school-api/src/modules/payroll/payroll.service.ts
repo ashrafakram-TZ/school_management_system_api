@@ -13,6 +13,8 @@ import {
   PayrollRunDetailDto,
   PayrollRunDto,
   PayslipDto,
+  PayslipPeriodsDto,
+  PayslipPreviewDto,
   RunQueryDto,
   SalaryQueryDto,
   SalaryStaffDto,
@@ -24,6 +26,7 @@ import { Payslip } from './entities/payslip.entity';
 import { SalaryStructure } from './entities/salary-structure.entity';
 import { computePay, monthLabel, monthlyGross, rupees } from './payroll.calc';
 import { payslipPdf } from './payslip.pdf';
+import { groupByYear, monthPattern, payslipLines } from './payslip-view';
 
 interface DayMark {
   user_id: number;
@@ -281,16 +284,16 @@ export class PayrollService {
     });
   }
 
-  async mine(user: AuthUser, page: number, limit: number): Promise<Paginated<PayslipDto>> {
-    const [rows, total] = await this.payslips
-      .createQueryBuilder('p')
-      .innerJoinAndMapOne(
-        'p.run',
-        PayrollRun,
-        'r',
-        "r.id = p.run_id AND r.status = 'finalized' AND r.deleted_at IS NULL",
-      )
-      .where('p.user_id = :userId', { userId: user.id })
+  async mine(
+    user: AuthUser,
+    page: number,
+    limit: number,
+    filter: { year?: number; month?: number } = {},
+  ): Promise<Paginated<PayslipDto>> {
+    const qb = this.myFinalSlips(user);
+    const pattern = monthPattern(filter.year, filter.month);
+    if (pattern) qb.andWhere('r.month LIKE :pattern', { pattern });
+    const [rows, total] = await qb
       .orderBy('r.month', 'DESC')
       .skip((page - 1) * limit)
       .take(limit)
@@ -300,6 +303,37 @@ export class PayrollService {
       page,
       limit,
     );
+  }
+
+  async myPayslip(user: AuthUser, id: number, pdfBase: string): Promise<PayslipPreviewDto> {
+    const row = await this.myFinalSlips(user).andWhere('p.id = :id', { id }).getOne();
+    if (!row) throw AppException.notFound('Payslip not found', 'PAYSLIP_NOT_FOUND');
+    const slip = this.presentSlip(row, (row as Payslip & { run: PayrollRun }).run);
+    return { ...slip, ...payslipLines(slip), pdf_path: `${pdfBase}/${slip.id}/pdf` };
+  }
+
+  async myPeriods(user: AuthUser): Promise<PayslipPeriodsDto> {
+    const rows = await this.myFinalSlips(user).orderBy('r.month', 'DESC').getMany();
+    return {
+      years: groupByYear(
+        rows.map((row) => {
+          const run = (row as Payslip & { run: PayrollRun }).run;
+          return { id: row.id, month: run.month, month_label: monthLabel(run.month), net: Number(row.net) };
+        }),
+      ),
+    };
+  }
+
+  private myFinalSlips(user: AuthUser) {
+    return this.payslips
+      .createQueryBuilder('p')
+      .innerJoinAndMapOne(
+        'p.run',
+        PayrollRun,
+        'r',
+        "r.id = p.run_id AND r.status = 'finalized' AND r.deleted_at IS NULL",
+      )
+      .where('p.user_id = :userId', { userId: user.id });
   }
 
   async pdf(schoolId: number | null, id: number, ownerId?: number): Promise<{ name: string; pdf: Buffer }> {

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AchievementsModule } from '../achievements/achievements.module';
+import { AppBannersModule } from '../app-banners/app-banners.module';
 import { AttendanceModule } from '../attendance/attendance.module';
 import { ExamsModule } from '../exams/exams.module';
 import { FeesModule } from '../fees/fees.module';
@@ -22,14 +23,20 @@ import { MobileParentDiaryController, MobileTeacherDiaryController } from './mob
 import { MobileParentChatController, MobileTeacherChatController } from './mobile-chat.controller';
 import { MobileParentAttendanceController, MobileTeacherAttendanceController } from './mobile-attendance.controller';
 import { MobileParentChildController, MobileTeacherController } from './mobile.controller';
-import { MobileParentAchievementsController, MobileTeacherAppController } from './mobile-teacher-app.controller';
+import {
+  MobileParentAchievementsController,
+  MobileParentBannerController,
+  MobileTeacherAppController,
+} from './mobile-teacher-app.controller';
 import { BannerService } from './banner.service';
 import { ParentPreviewController } from './parent-preview.controller';
 import { ParentPreviewService } from './parent-preview.service';
 import { TeacherAppService } from './teacher-app.service';
+import { TeacherInsightsService } from './teacher-insights.service';
 
 @Module({
   imports: [
+    AppBannersModule,
     StudentsModule,
     StudentRecordsModule,
     StudentLifecycleModule,
@@ -55,6 +62,7 @@ import { TeacherAppService } from './teacher-app.service';
     MobileTeacherAttendanceController,
     MobileTeacherAppController,
     MobileParentAchievementsController,
+    MobileParentBannerController,
     MobileTeacherMeetingsController,
     MobileParentMeetingsController,
     MobileTeacherDiaryController,
@@ -63,7 +71,7 @@ import { TeacherAppService } from './teacher-app.service';
     MobileParentChatController,
     ParentPreviewController,
   ],
-  providers: [MobileAccessService, TeacherAppService, BannerService, ParentPreviewService],
+  providers: [MobileAccessService, TeacherAppService, TeacherInsightsService, BannerService, ParentPreviewService],
   exports: [MobileAccessService],
 })
 export class MobileModule {}

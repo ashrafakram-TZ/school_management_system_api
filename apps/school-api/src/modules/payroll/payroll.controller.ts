@@ -17,17 +17,20 @@ import {
   ApiErrors,
   AuthUser,
   CurrentUser,
-  ListQueryDto,
   RequirePermissions,
+  RequireRoles,
   ResponseMessage,
 } from '@app/common';
 import { ApiPdf, pdfFile } from '../../shared/pdf-response';
 import { ApiSchoolHeader, SchoolId } from '../../shared/school-context';
-import { PERMISSIONS } from '../access/access.catalog';
+import { PERMISSIONS, ROLES } from '../access/access.catalog';
 import {
+  MyPayslipQueryDto,
   PayrollRunDetailDto,
   PayrollRunDto,
   PayslipDto,
+  PayslipPeriodsDto,
+  PayslipPreviewDto,
   RunMonthDto,
   RunQueryDto,
   SalaryQueryDto,
@@ -150,10 +153,88 @@ export class MyPayslipsController {
   constructor(private readonly payroll: PayrollService) {}
 
   @Get()
-  @ApiOperation({ summary: 'My payslips (final months only), newest first' })
+  @ApiOperation({
+    summary: 'My payslips (final months only), newest first, with year and month filters',
+    description:
+      'year=2026 shows that year; month=9 with year shows one month; month alone shows that month in every year.',
+  })
   @ApiEnvelope(PayslipDto, { paginated: true })
-  list(@CurrentUser() user: AuthUser, @Query() query: ListQueryDto) {
-    return this.payroll.mine(user, query.page, query.limit);
+  @ApiErrors(HttpStatus.BAD_REQUEST)
+  list(@CurrentUser() user: AuthUser, @Query() query: MyPayslipQueryDto) {
+    return this.payroll.mine(user, query.page, query.limit, { year: query.year, month: query.month });
+  }
+
+  @Get('periods')
+  @ApiOperation({
+    summary: 'Years and months that have a payslip, for the year and month filters',
+    description: 'Newest first, with the net pay of each month and the total per year.',
+  })
+  @ApiEnvelope(PayslipPeriodsDto)
+  periods(@CurrentUser() user: AuthUser) {
+    return this.payroll.myPeriods(user);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Payslip preview: earnings and deductions lines, days worked, gross and net pay',
+    description:
+      'Only my own final payslips; others return 404 PAYSLIP_NOT_FOUND. pdf_path downloads the same payslip as a PDF.',
+  })
+  @ApiEnvelope(PayslipPreviewDto)
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  preview(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.payroll.myPayslip(user, id, '/api/v1/me/payslips');
+  }
+
+  @Get(':id/pdf')
+  @ApiOperation({ summary: 'Download my payslip PDF' })
+  @ApiPdf('Payslip PDF')
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  async pdf(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return pdfFile(await this.payroll.pdf(null, id, user.id), true);
+  }
+}
+
+@ApiTags('Mobile · Teacher')
+@ApiBearerAuth()
+@ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
+@RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
+@Controller('mobile/teacher/payslips')
+export class MobileTeacherPayslipsController {
+  constructor(private readonly payroll: PayrollService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'My payslips (final months only), newest first, with year and month filters',
+    description:
+      'year=2026 shows that year; month=9 with year shows one month; month alone shows that month in every year.',
+  })
+  @ApiEnvelope(PayslipDto, { paginated: true })
+  @ApiErrors(HttpStatus.BAD_REQUEST)
+  list(@CurrentUser() user: AuthUser, @Query() query: MyPayslipQueryDto) {
+    return this.payroll.mine(user, query.page, query.limit, { year: query.year, month: query.month });
+  }
+
+  @Get('periods')
+  @ApiOperation({
+    summary: 'Years and months that have a payslip, for the year and month filters',
+    description: 'Newest first, with the net pay of each month and the total per year.',
+  })
+  @ApiEnvelope(PayslipPeriodsDto)
+  periods(@CurrentUser() user: AuthUser) {
+    return this.payroll.myPeriods(user);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Payslip preview: earnings and deductions lines, days worked, gross and net pay',
+    description:
+      'Only my own final payslips; others return 404 PAYSLIP_NOT_FOUND. pdf_path downloads the same payslip as a PDF.',
+  })
+  @ApiEnvelope(PayslipPreviewDto)
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  preview(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.payroll.myPayslip(user, id, '/api/v1/mobile/teacher/payslips');
   }
 
   @Get(':id/pdf')

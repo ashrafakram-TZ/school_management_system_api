@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsNumber, IsOptional, Matches, Max, Min } from 'class-validator';
-import { ListQueryDto, toBoolean } from '@app/common';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, Matches, Max, Min } from 'class-validator';
+import { ListQueryDto, PaginationDto, toBoolean } from '@app/common';
 import { IsDateOnly } from '../../../shared/dates';
 import { RUN_STATUSES, RunStatus } from '../entities/payroll-run.entity';
 
@@ -301,4 +301,83 @@ export class PayrollRunDetailDto extends PayrollRunDto {
 
   @ApiProperty({ type: [MissingSalaryDto], description: 'Active staff left out because they have no salary yet' })
   missing: MissingSalaryDto[];
+}
+
+export class MyPayslipQueryDto extends PaginationDto {
+  @ApiPropertyOptional({ example: 2026, description: 'Only payslips of this year' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
+
+  @ApiPropertyOptional({ example: 9, description: 'Only this month (1–12); with year for one exact month' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  month?: number;
+}
+
+export class PayslipLineDto {
+  @ApiProperty({ example: 'hra' })
+  code: string;
+
+  @ApiProperty({ example: 'House rent allowance (HRA)' })
+  label: string;
+
+  @ApiProperty({ example: 6000 })
+  amount: number;
+}
+
+export class PayslipPreviewDto extends PayslipDto {
+  @ApiProperty({ type: [PayslipLineDto], description: 'Earnings to show, zero lines left out (Basic always shown)' })
+  earnings: PayslipLineDto[];
+
+  @ApiProperty({ type: [PayslipLineDto], description: 'Deductions to show, zero lines left out' })
+  deductions: PayslipLineDto[];
+
+  @ApiProperty({
+    example: '/api/v1/mobile/teacher/payslips/41/pdf',
+    description: 'Download link for the PDF (send the same token)',
+  })
+  pdf_path: string;
+}
+
+export class PayslipMonthDto {
+  @ApiProperty({ example: '2026-09' })
+  month: string;
+
+  @ApiProperty({ example: 9 })
+  month_no: number;
+
+  @ApiProperty({ example: 'September 2026' })
+  label: string;
+
+  @ApiProperty({ example: 41 })
+  payslip_id: number;
+
+  @ApiProperty({ example: 38250 })
+  net: number;
+}
+
+export class PayslipYearDto {
+  @ApiProperty({ example: 2026 })
+  year: number;
+
+  @ApiProperty({ example: 153000, description: 'Net pay of the listed months' })
+  total_net: number;
+
+  @ApiProperty({ type: [PayslipMonthDto], description: 'Newest month first' })
+  months: PayslipMonthDto[];
+}
+
+export class PayslipPeriodsDto {
+  @ApiProperty({
+    type: [PayslipYearDto],
+    description: 'Years and months that have a payslip, newest first; use for the year and month filters',
+  })
+  years: PayslipYearDto[];
 }

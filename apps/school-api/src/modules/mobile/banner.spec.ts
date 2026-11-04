@@ -11,6 +11,7 @@ const day = (patch: Partial<TeacherDayFacts> = {}): TeacherDayFacts => ({
   combined: [],
   unmarkedSections: [],
   pendingLeaves: 0,
+  staffApprovals: 0,
   unread: 0,
   ...patch,
 });

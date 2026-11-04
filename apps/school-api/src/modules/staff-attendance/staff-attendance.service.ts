@@ -69,6 +69,8 @@ export class StaffAttendanceService {
       status: (await this.onLeave(user.id, today)) ? 'on_leave' : (row?.status ?? 'not_checked_in'),
       reporting_time: school.staff_reporting_time,
       geofence_radius_m: school.geofence_radius_m,
+      school_latitude: school.latitude === null ? null : Number(school.latitude),
+      school_longitude: school.longitude === null ? null : Number(school.longitude),
       geofence_ready: school.latitude !== null && school.longitude !== null,
       can_check_in: !row?.check_in_at,
       can_check_out: Boolean(row?.check_in_at) && !row?.check_out_at,

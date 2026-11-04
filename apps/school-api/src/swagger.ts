@@ -71,7 +71,7 @@ const TAGS: [string, string][] = [
   ['Health', 'Service status'],
 ];
 
-const CENTRAL_SIGN_IN = `**Sign-in uses the Tamilzorous Auth Service.** The OTP SMS is sent and checked by the central Auth Service. Apps call only the \`/auth/*\` endpoints of this API; this API talks to the Auth Service and returns the school session (school and roles). Do not call the Auth Service directly from the web or mobile app. Refresh and sign-out stay in this API until the Auth Service provides them.`;
+const CENTRAL_SIGN_IN = `**Sign-in uses the Tamilzorous Auth Service.** The OTP SMS is sent and checked by the central Auth Service. Apps call only the \`/auth/*\` endpoints of this API; this API talks to the Auth Service and returns the school session (school and roles). Do not call the Auth Service directly from the web or mobile app. Refresh and sign-out also go through this API: \`POST /auth/refresh\` renews the Auth Service sign-in at the same time (if it has ended there, you get 401 \`SESSION_REVOKED\` and the user signs in again), and \`POST /auth/logout\` signs out of both. Apps keep using only this API's tokens.`;
 
 const LOCAL_SIGN_IN = `**Sign-in uses this API's own OTP** (\`AUTH_PROVIDER=local\`, for local testing; the test code is 123456 when \`OTP_MODE=test\`).`;
 
@@ -116,8 +116,8 @@ function describeSignIn(document: OpenAPIObject): OpenAPIObject {
     ? {
         'otp/request': 'Step 1: send OTP (sent by the Tamilzorous Auth Service)',
         'otp/verify': 'Step 2: verify OTP with the Tamilzorous Auth Service and get the school session',
-        refresh: 'Refresh the school session (this API, until the Auth Service adds refresh)',
-        logout: 'Sign out (this API, until the Auth Service adds sign-out)',
+        refresh: 'Refresh the school session; also renews the Auth Service sign-in',
+        logout: 'Sign out here and at the Auth Service',
       }
     : {};
   const paths = Object.fromEntries(

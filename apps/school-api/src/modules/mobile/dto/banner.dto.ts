@@ -11,7 +11,9 @@ export const BANNER_CODES = [
   'PROXY_TODAY',
   'COMBINED_CLASS_TODAY',
   'LEAVE_REQUESTS_PENDING',
+  'STAFF_LEAVE_APPROVALS',
   'UNREAD_ALERTS',
+  'SCHOOL_BANNER',
 ] as const;
 export type BannerCode = (typeof BANNER_CODES)[number];
 
@@ -21,7 +23,9 @@ export const BANNER_SCREENS = [
   'attendance',
   'timetable',
   'student_leaves',
+  'staff_leave_approvals',
   'notifications',
+  'link',
 ] as const;
 export type BannerScreen = (typeof BANNER_SCREENS)[number];
 
@@ -64,6 +68,16 @@ export class BannerDto {
 
   @ApiProperty({ type: BannerActionDto })
   action: BannerActionDto;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description: 'SCHOOL_BANNER only: signed image link (expires in about an hour; take it from a fresh call)',
+  })
+  image_url?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String, description: 'Smaller version of the image, when available' })
+  thumbnail_url?: string | null;
 }
 
 export class BannerListDto {

@@ -1,6 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { AchievementDto } from '../../achievements/dto/achievement.dto';
-import { StudentExamResultDto } from '../../exams/dto/exams.dto';
+import { ExamRefDto, StudentExamResultDto } from '../../exams/dto/exams.dto';
+import { ROSTER_SORTS, RosterSort, SORT_ORDERS, SortOrder } from '../roster.logic';
 import { FeeStatusDto, StudentFeesDto } from '../../fees/dto/fees.dto';
 import { MonthlyAttendanceDto, StudentLeaveDto } from '../../attendance/dto/attendance.dto';
 import { DigitalIdDto } from '../../student-lifecycle/dto/lifecycle.dto';
@@ -38,6 +41,13 @@ export class TodayPeriodDto {
 
   @ApiProperty({ nullable: true, type: String })
   room: string | null;
+
+  @ApiProperty({
+    type: RefDto,
+    nullable: true,
+    description: 'For a substitute period: the teacher whose class this is (away today)',
+  })
+  covering_for: RefDto | null;
 
   @ApiProperty({ example: 38, description: 'Students in the section' })
   students: number;
@@ -149,4 +159,82 @@ export class RosterStudentDto extends StudentListItemDto {
     description: 'Fee status; only for the class teacher of the section',
   })
   fee: FeeStatusDto | null;
+
+  @ApiProperty({
+    example: 3,
+    nullable: true,
+    type: Number,
+    description: 'Section rank in the exam used (latest published by default); null when not ranked',
+  })
+  rank: number | null;
+
+  @ApiProperty({
+    enum: ['present', 'absent', 'late', 'half_day', 'leave', 'not_marked'],
+    example: 'present',
+    description: 'Today’s morning attendance; not_marked until the class teacher marks it',
+  })
+  today_status: string;
+}
+
+export class RosterQueryDto {
+  @ApiPropertyOptional({ enum: ROSTER_SORTS, default: 'roll_no', description: 'roll_no, name or rank (exam rank)' })
+  @IsOptional()
+  @IsIn(ROSTER_SORTS, { message: 'sort must be roll_no, name or rank' })
+  sort?: RosterSort;
+
+  @ApiPropertyOptional({ enum: SORT_ORDERS, default: 'asc' })
+  @IsOptional()
+  @IsIn(SORT_ORDERS, { message: 'order must be asc or desc' })
+  order?: SortOrder;
+
+  @ApiPropertyOptional({ example: 4, description: 'Exam for the rank; default the latest published exam of the class' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  exam_id?: number;
+}
+
+export class BenchQueryDto extends RosterQueryDto {
+  @ApiPropertyOptional({
+    example: 3,
+    default: 3,
+    description: 'How many bench groups. 30 students and 3 groups give First 10, Second 10, Last 10',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2)
+  @Max(9)
+  groups?: number;
+}
+
+export class BenchGroupDto {
+  @ApiProperty({ example: 1 })
+  position: number;
+
+  @ApiProperty({ example: 'First', description: 'First, Second, … and Last for the back group' })
+  label: string;
+
+  @ApiProperty({ example: 10 })
+  count: number;
+
+  @ApiProperty({ type: [RosterStudentDto] })
+  students: RosterStudentDto[];
+}
+
+export class BenchPlanDto {
+  @ApiProperty({ enum: ROSTER_SORTS, example: 'roll_no' })
+  sort: RosterSort;
+
+  @ApiProperty({ enum: SORT_ORDERS, example: 'asc' })
+  order: SortOrder;
+
+  @ApiProperty({ type: ExamRefDto, nullable: true })
+  exam: ExamRefDto | null;
+
+  @ApiProperty({ example: 30 })
+  total: number;
+
+  @ApiProperty({ type: [BenchGroupDto] })
+  groups: BenchGroupDto[];
 }

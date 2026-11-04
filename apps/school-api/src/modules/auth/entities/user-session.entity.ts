@@ -43,6 +43,12 @@ export class UserSession {
   @Column({ type: 'timestamptz', nullable: true })
   revoked_at: Date | null;
 
+  @Column({ type: 'text', nullable: true })
+  central_access_enc: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  central_refresh_enc: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 }

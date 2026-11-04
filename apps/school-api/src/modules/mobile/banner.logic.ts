@@ -11,6 +11,7 @@ export interface TeacherDayFacts {
   combined: { period_no: number; from: string; group: string; section: string; start_time: string }[];
   unmarkedSections: { id: number; name: string }[];
   pendingLeaves: number;
+  staffApprovals: number;
   unread: number;
 }
 
@@ -91,6 +92,16 @@ export function teacherBanners(facts: TeacherDayFacts): BannerDto[] {
       action: { screen: 'student_leaves' },
     });
   }
+  if (facts.staffApprovals) {
+    banners.push({
+      code: 'STAFF_LEAVE_APPROVALS',
+      severity: 'info',
+      title: 'Staff leave to approve',
+      message: `${plural(facts.staffApprovals, 'staff leave request', 'staff leave requests')} waiting for your decision.`,
+      count: facts.staffApprovals,
+      action: { screen: 'staff_leave_approvals' },
+    });
+  }
   if (facts.unread) {
     banners.push({
       code: 'UNREAD_ALERTS',
@@ -102,4 +113,23 @@ export function teacherBanners(facts: TeacherDayFacts): BannerDto[] {
     });
   }
   return banners.sort((a, b) => ORDER[a.severity] - ORDER[b.severity]);
+}
+
+export interface SchoolBannerSource {
+  title: string;
+  message: string | null;
+  link_url: string | null;
+  image: { url: string; thumbnail_url: string | null } | null;
+}
+
+export function schoolBanners(rows: SchoolBannerSource[]): BannerDto[] {
+  return rows.map((row) => ({
+    code: 'SCHOOL_BANNER',
+    severity: 'info',
+    title: row.title,
+    message: row.message ?? '',
+    action: row.link_url ? { screen: 'link', params: { url: row.link_url } } : { screen: 'home' },
+    image_url: row.image?.url ?? null,
+    thumbnail_url: row.image?.thumbnail_url ?? null,
+  }));
 }

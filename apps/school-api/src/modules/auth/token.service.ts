@@ -1,11 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { AppException } from '@app/common';
 import { authConfig, AuthConfig } from '../../config/configuration';
 import { hmac, randomToken, safeEqual } from '../../shared/crypto';
+import { FieldCipher } from '../security/field-cipher';
 import { User } from '../users/entities/user.entity';
+import { CentralAuthClient, CentralSessionEnded, CentralTokens } from './central-auth.client';
 import { TokenPairDto } from './dto/auth.dto';
 import { UserSession } from './entities/user-session.entity';
 
@@ -27,13 +29,21 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class TokenService {
+  private readonly logger = new Logger('Sessions');
+
   constructor(
     @InjectRepository(UserSession) private readonly sessions: Repository<UserSession>,
     @Inject(authConfig.KEY) private readonly config: AuthConfig,
     private readonly jwt: JwtService,
+    private readonly central: CentralAuthClient,
+    private readonly cipher: FieldCipher,
   ) {}
 
-  async issue(user: User, info: SessionInfo): Promise<TokenPairDto & { session_id: number }> {
+  async issue(
+    user: User,
+    info: SessionInfo,
+    central: CentralTokens | null = null,
+  ): Promise<TokenPairDto & { session_id: number }> {
     const secret = randomToken();
     const session = await this.sessions.save(
       this.sessions.create({
@@ -46,6 +56,7 @@ export class TokenService {
         user_agent: info.user_agent?.slice(0, 255) ?? null,
         expires_at: this.refreshExpiry(),
         last_used_at: new Date(),
+        ...this.sealCentral(central),
       }),
     );
     await this.sessions.update(session.id, { refresh_token_hash: this.hash(session.id, secret) });
@@ -72,14 +83,30 @@ export class TokenService {
       throw AppException.unauthorized('Your account is not active. Contact the school office.', 'ACCOUNT_INACTIVE');
     }
 
+    const central = await this.refreshCentral(session);
     const next = randomToken();
     const expiresAt = this.refreshExpiry();
     await this.sessions.update(session.id, {
       refresh_token_hash: this.hash(session.id, next),
       expires_at: expiresAt,
       last_used_at: new Date(),
+      ...(central ? this.sealCentral(central) : {}),
     });
     return this.pair(user, session.id, next, expiresAt);
+  }
+
+  async endCentral(sessionId: number): Promise<void> {
+    const session = await this.sessions.findOneBy({ id: sessionId });
+    if (!session?.central_access_enc) return;
+    try {
+      const access = this.cipher.decrypt(session.central_access_enc);
+      if (await this.central.logout(access)) return;
+      if (!session.central_refresh_enc) return;
+      const fresh = await this.central.refresh(this.cipher.decrypt(session.central_refresh_enc));
+      await this.central.logout(fresh.accessToken);
+    } catch (error) {
+      this.logger.warn(`Auth Service logout for session ${sessionId} skipped: ${(error as Error).message}`);
+    }
   }
 
   async revoke(sessionId: number): Promise<void> {
@@ -116,6 +143,26 @@ export class TokenService {
       token_type: 'Bearer',
       expires_in: this.config.accessTtlSeconds,
       refresh_expires_at: refreshExpiresAt,
+    };
+  }
+
+  private async refreshCentral(session: UserSession): Promise<CentralTokens | null> {
+    if (!session.central_refresh_enc) return null;
+    try {
+      return await this.central.refresh(this.cipher.decrypt(session.central_refresh_enc));
+    } catch (error) {
+      if (error instanceof CentralSessionEnded) {
+        await this.revoke(session.id);
+        throw AppException.unauthorized('Your sign-in has ended. Sign in again.', 'SESSION_REVOKED');
+      }
+      throw error;
+    }
+  }
+
+  private sealCentral(central: CentralTokens | null): Pick<UserSession, 'central_access_enc' | 'central_refresh_enc'> {
+    return {
+      central_access_enc: central ? this.cipher.encrypt(central.accessToken) : null,
+      central_refresh_enc: central ? this.cipher.encrypt(central.refreshToken) : null,
     };
   }
 

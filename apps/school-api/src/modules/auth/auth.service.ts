@@ -13,6 +13,7 @@ import {
   CENTRAL_OTP_TTL_SECONDS,
   CENTRAL_RESEND_SECONDS,
   CentralAuthClient,
+  CentralTokens,
   CentralUserMissing,
 } from './central-auth.client';
 import { OtpService } from './otp.service';
@@ -59,6 +60,7 @@ export class AuthService {
   async verifyOtp(dto: VerifyOtpDto, meta: RequestMeta): Promise<LoginResponseDto> {
     const user = await this.activeUser(dto.mobile);
     await this.assertApp(user, dto.client.app);
+    let central: CentralTokens | null = null;
     if (this.central.enabled) {
       const login = await this.central.verifyOtp(user.mobile, dto.otp).catch((error: unknown) => {
         if (error instanceof CentralUserMissing) {
@@ -69,18 +71,23 @@ export class AuthService {
       if (!user.auth_user_id && login.user?.id !== undefined) {
         await this.userRepo.update(user.id, { auth_user_id: String(login.user.id) });
       }
+      central = { accessToken: login.accessToken, refreshToken: login.refreshToken };
     } else {
       await this.otp.verify(dto.mobile, dto.otp);
     }
 
     const client = dto.client;
-    const { session_id: sessionId, ...pair } = await this.tokens.issue(user, {
-      app: client.app,
-      platform: client.platform,
-      device_name: client.device_name,
-      ip: meta.ip,
-      user_agent: meta.userAgent,
-    });
+    const { session_id: sessionId, ...pair } = await this.tokens.issue(
+      user,
+      {
+        app: client.app,
+        platform: client.platform,
+        device_name: client.device_name,
+        ip: meta.ip,
+        user_agent: meta.userAgent,
+      },
+      central,
+    );
     await this.userRepo.update(user.id, { last_login_at: new Date() });
     if (client.fcm_token && client.platform) {
       await this.devices.register(user.id, sessionId, {
@@ -99,6 +106,7 @@ export class AuthService {
   }
 
   async logout(user: AuthUser): Promise<void> {
+    await this.tokens.endCentral(user.session_id);
     await this.tokens.revoke(user.session_id);
     await this.devices.removeForSession(user.session_id);
   }

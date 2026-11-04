@@ -4,8 +4,10 @@ import { AuthUser } from '@app/common';
 import { appConfig, AppConfig } from '../../config/configuration';
 import { todayIn } from '../../shared/dates';
 import { weekday } from '../../shared/school-days';
+import { StaffLeaveService } from '../staff-leave/staff-leave.service';
 import { TimetableService } from '../timetable/timetable.service';
-import { teacherBanners } from './banner.logic';
+import { AppBannersService } from '../app-banners/app-banners.service';
+import { schoolBanners, teacherBanners } from './banner.logic';
 import { BannerListDto } from './dto/banner.dto';
 
 const GROUPS: Record<string, string> = { all: 'all students', boys: 'the boys', girls: 'the girls' };
@@ -17,6 +19,8 @@ const clock = (timeZone: string) =>
 export class BannerService {
   constructor(
     private readonly timetable: TimetableService,
+    private readonly staffLeaves: StaffLeaveService,
+    private readonly appBanners: AppBannersService,
     private readonly dataSource: DataSource,
     @Inject(appConfig.KEY) private readonly app: AppConfig,
   ) {}
@@ -84,31 +88,43 @@ export class BannerService {
         ),
       ]);
     const startOf = (periodNo: number) => periods.find((item) => item.period_no === Number(periodNo))?.start_time ?? '';
+    const posters = schoolBanners(await this.appBanners.liveFor(schoolId, 'staff'));
     return {
       date,
-      banners: teacherBanners({
-        holiday: holiday?.name ?? null,
-        sunday: weekday(date) === 0,
-        leaveType: leave?.name ?? null,
-        checkedIn: Boolean(checkIn),
-        reportingTime: school?.reporting ?? '08:45',
-        now: clock(this.app.timeZone),
-        proxies: proxies.map((row) => ({
-          ...row,
-          period_no: Number(row.period_no),
-          start_time: startOf(row.period_no),
-        })),
-        combined: combined.map((row) => ({
-          period_no: Number(row.period_no),
-          from: row.from_section,
-          group: GROUPS[row.student_group] ?? 'students',
-          section: row.to_section,
-          start_time: startOf(row.period_no),
-        })),
-        unmarkedSections: unmarked.map((row) => ({ id: Number(row.id), name: row.name })),
-        pendingLeaves: Number(leaves?.count ?? 0),
-        unread: Number(unread?.count ?? 0),
-      }),
+      banners: [
+        ...teacherBanners({
+          holiday: holiday?.name ?? null,
+          sunday: weekday(date) === 0,
+          leaveType: leave?.name ?? null,
+          checkedIn: Boolean(checkIn),
+          reportingTime: school?.reporting ?? '08:45',
+          now: clock(this.app.timeZone),
+          proxies: proxies.map((row) => ({
+            ...row,
+            period_no: Number(row.period_no),
+            start_time: startOf(row.period_no),
+          })),
+          combined: combined.map((row) => ({
+            period_no: Number(row.period_no),
+            from: row.from_section,
+            group: GROUPS[row.student_group] ?? 'students',
+            section: row.to_section,
+            start_time: startOf(row.period_no),
+          })),
+          unmarkedSections: unmarked.map((row) => ({ id: Number(row.id), name: row.name })),
+          pendingLeaves: Number(leaves?.count ?? 0),
+          staffApprovals: (await this.staffLeaves.approvals(user)).filter((leave) => leave.staff.id !== user.id).length,
+          unread: Number(unread?.count ?? 0),
+        }),
+        ...posters,
+      ],
+    };
+  }
+
+  async parent(schoolId: number): Promise<BannerListDto> {
+    return {
+      date: todayIn(this.app.timeZone),
+      banners: schoolBanners(await this.appBanners.liveFor(schoolId, 'parents')),
     };
   }
 }

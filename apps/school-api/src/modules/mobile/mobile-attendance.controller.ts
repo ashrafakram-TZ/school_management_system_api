@@ -40,6 +40,8 @@ import {
   StaffLeaveInputDto,
 } from '../staff-leave/dto/staff-leave.dto';
 import { StaffLeaveService } from '../staff-leave/staff-leave.service';
+import { LeavePreviewDto, LeavePreviewQueryDto, StaffLeaveApprovalDto } from './dto/teacher-insights.dto';
+import { TeacherInsightsService } from './teacher-insights.service';
 import { MySubstitutionDto } from '../substitutes/dto/substitute.dto';
 import { SubstitutesService } from '../substitutes/substitutes.service';
 import { TeacherTimetableDto } from '../timetable/dto/timetable.dto';
@@ -163,6 +165,7 @@ export class MobileTeacherAttendanceController {
     private readonly staffLeaves: StaffLeaveService,
     private readonly timetable: TimetableService,
     private readonly substitutes: SubstitutesService,
+    private readonly insights: TeacherInsightsService,
   ) {}
 
   @Get('check-in')
@@ -273,11 +276,27 @@ export class MobileTeacherAttendanceController {
     return this.staffLeaves.cancel(user, id);
   }
 
+  @Get('leaves/preview')
+  @ApiOperation({
+    summary: 'Before applying: working days, balance after, and my periods on those days',
+    description:
+      'Sundays and holidays are left out. periods lists my timetable periods on those days and morning_attendance my class-teacher sections; message is a ready-made line such as "You have 11 periods, including 6 - A morning attendance on these days." enough_balance false and overlaps_existing true tell the app that applying would be refused.',
+  })
+  @ApiEnvelope(LeavePreviewDto)
+  @ApiErrors(HttpStatus.BAD_REQUEST)
+  preview(@CurrentUser() user: AuthUser, @Query() query: LeavePreviewQueryDto) {
+    return this.insights.leavePreview(user, query);
+  }
+
   @Get('leave-approvals')
-  @ApiOperation({ summary: 'Staff leave requests waiting for me (HOD or principal)' })
-  @ApiEnvelope(StaffLeaveDto, { isArray: true })
+  @ApiOperation({
+    summary: 'Staff leave requests waiting for me (HOD or principal)',
+    description:
+      'Each request also has balance_remaining (days of that leave type the person has left), affected_periods and affected_sections (classes that will need a proxy).',
+  })
+  @ApiEnvelope(StaffLeaveApprovalDto, { isArray: true })
   approvals(@CurrentUser() user: AuthUser) {
-    return this.staffLeaves.approvals(user);
+    return this.insights.approvals(user);
   }
 
   @Post('leave-approvals/:id/decision')

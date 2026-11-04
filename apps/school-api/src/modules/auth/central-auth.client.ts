@@ -30,6 +30,11 @@ export interface CentralLogin {
   user: CentralUser;
 }
 
+export interface CentralTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface CentralRegistration {
   name: string;
   mobile: string;
@@ -84,6 +89,8 @@ export function mapCentralError(status: number, message: string): AppException {
 
 export class CentralUserMissing extends Error {}
 
+export class CentralSessionEnded extends Error {}
+
 @Injectable()
 export class CentralAuthClient {
   private readonly logger = new Logger('CentralAuth');
@@ -108,6 +115,23 @@ export class CentralAuthClient {
     const message = centralMessage(body);
     if (message.toLowerCase().includes('user not found')) throw new CentralUserMissing(mobile);
     throw mapCentralError(status, message);
+  }
+
+  async refresh(refreshToken: string): Promise<CentralTokens> {
+    const { status, body } = await this.post<CentralTokens>('refresh', { refreshToken });
+    if (status >= 200 && status < 300 && body?.data?.accessToken && body.data.refreshToken) {
+      return { accessToken: body.data.accessToken, refreshToken: body.data.refreshToken };
+    }
+    if (status === 400 || status === 401 || status === 403) throw new CentralSessionEnded();
+    throw AppException.unavailable(
+      'Sign-in is not available right now. Try again in a minute.',
+      'AUTH_SERVICE_UNAVAILABLE',
+    );
+  }
+
+  async logout(accessToken: string): Promise<boolean> {
+    const { status } = await this.post('logout', {}, { authorization: `Bearer ${accessToken}` });
+    return status >= 200 && status < 300;
   }
 
   async register(input: CentralRegistration): Promise<CentralUser | null> {
@@ -137,12 +161,16 @@ export class CentralAuthClient {
     return null;
   }
 
-  private async post<T>(path: string, payload: object): Promise<{ status: number; body: CentralEnvelope<T> | null }> {
+  private async post<T>(
+    path: string,
+    payload: object,
+    headers: Record<string, string> = {},
+  ): Promise<{ status: number; body: CentralEnvelope<T> | null }> {
     let response: Response;
     try {
       response = await fetch(`${this.config.url}/${path}`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        headers: { 'content-type': 'application/json', accept: 'application/json', ...headers },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });

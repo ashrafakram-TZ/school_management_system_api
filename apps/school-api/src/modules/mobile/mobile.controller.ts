@@ -1,9 +1,8 @@
-import { Body, Controller, Get, HttpStatus, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiEnvelope, ApiErrors, AuthUser, CurrentUser, RequireRoles, ResponseMessage } from '@app/common';
 import { ROLES } from '../access/access.catalog';
 import { AssignmentsService } from '../staff/assignments.service';
-import { TeacherClassDto } from '../staff/dto/staff-response.dto';
 import { DigitalIdDto } from '../student-lifecycle/dto/lifecycle.dto';
 import { StudentLifecycleService } from '../student-lifecycle/student-lifecycle.service';
 import { BehaviourInputDto, BehaviourNoteDto, HealthDto, StudentDocumentDto } from '../student-records/dto/records.dto';
@@ -11,9 +10,11 @@ import { StudentRecordsService } from '../student-records/student-records.servic
 import { StudentDetailDto } from '../students/dto/student-response.dto';
 import { StudentsService } from '../students/students.service';
 import { ChildCardDto } from './dto/mobile.dto';
-import { RosterStudentDto } from './dto/teacher-app.dto';
+import { BenchPlanDto, BenchQueryDto, RosterQueryDto, RosterStudentDto } from './dto/teacher-app.dto';
 import { MobileAccessService } from './mobile-access.service';
+import { MyClassDto, TeacherProfileDto } from './dto/teacher-insights.dto';
 import { TeacherAppService } from './teacher-app.service';
+import { TeacherInsightsService } from './teacher-insights.service';
 
 @ApiTags('Mobile · Parent')
 @ApiBearerAuth()
@@ -75,30 +76,59 @@ export class MobileTeacherController {
     private readonly students: StudentsService,
     private readonly records: StudentRecordsService,
     private readonly teacherApp: TeacherAppService,
+    private readonly insights: TeacherInsightsService,
   ) {}
 
   @Get('classes')
   @ApiOperation({
     summary: 'My classes this year: class teacher sections first, then sections I teach, with my subjects',
+    description:
+      'Each class has periods_per_week (my timetable periods there) and academic_year. My class-teacher sections also have class_teacher_summary: present and absent today, attendance marked, fees overdue and due, and parent leave requests waiting.',
   })
-  @ApiEnvelope(TeacherClassDto, { isArray: true })
+  @ApiEnvelope(MyClassDto, { isArray: true })
   classes(@CurrentUser() user: AuthUser) {
-    return this.assignments.teacherClasses(this.access.teacherSchool(user), user.id);
+    return this.insights.myClasses(this.access.teacherSchool(user), user.id);
+  }
+
+  @Get('profile')
+  @ApiOperation({
+    summary: 'My staff profile: designation, department, subjects, HOD, class teacher of, weekly load',
+    description: 'headline is ready for the Me screen, for example "Mathematics · HOD · Class teacher 6 - A".',
+  })
+  @ApiEnvelope(TeacherProfileDto)
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  profile(@CurrentUser() user: AuthUser) {
+    return this.insights.profile(this.access.teacherSchool(user), user);
   }
 
   @Get('sections/:id/students')
   @ApiOperation({
-    summary: 'Class roster in roll number order, with fee status for the class teacher',
+    summary: 'Class roster, sorted by roll number, name or exam rank, ascending or descending',
     description:
-      'fee is filled only for the class teacher of the section (paid, partly_paid, due, overdue with balance and next due date). For rank order use GET /mobile/teacher/sections/{id}/ranking.',
+      'Default roll_no asc. sort=rank uses the latest published exam of the class (or exam_id); students without a roll number or rank come last in both directions. fee is filled only for the class teacher of the section (paid, partly_paid, due, overdue with balance and next due date).',
   })
   @ApiEnvelope(RosterStudentDto, { isArray: true })
-  @ApiErrors(HttpStatus.NOT_FOUND)
-  async roster(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+  @ApiErrors(HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST)
+  async roster(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Query() query: RosterQueryDto) {
     const schoolId = this.access.teacherSchool(user);
     await this.assignments.assertTeachesSection(schoolId, user.id, id);
     const classTeacher = (await this.access.classTeacherSections(schoolId, user.id)).includes(id);
-    return this.teacherApp.roster(schoolId, id, classTeacher);
+    return this.teacherApp.roster(schoolId, id, classTeacher, query);
+  }
+
+  @Get('sections/:id/benches')
+  @ApiOperation({
+    summary: 'Students split into bench groups (First, Second, … Last), in roll number, name or rank order',
+    description:
+      'The section is sorted (sort and order, as in the roster) and split into `groups` (default 3) as evenly as possible, front groups first: 30 students give First 10, Second 10, Last 10; 31 give 11, 10, 10. Each student has the same fields as the roster.',
+  })
+  @ApiEnvelope(BenchPlanDto)
+  @ApiErrors(HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST)
+  async benches(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Query() query: BenchQueryDto) {
+    const schoolId = this.access.teacherSchool(user);
+    await this.assignments.assertTeachesSection(schoolId, user.id, id);
+    const classTeacher = (await this.access.classTeacherSections(schoolId, user.id)).includes(id);
+    return this.teacherApp.benches(schoolId, id, classTeacher, query);
   }
 
   @Get('students/:id')

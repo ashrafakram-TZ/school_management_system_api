@@ -137,6 +137,17 @@ export class CheckInStatusDto extends StaffDayDto {
   @ApiProperty({ example: 200 })
   geofence_radius_m: number;
 
+  @ApiProperty({
+    example: 13.0878,
+    nullable: true,
+    type: Number,
+    description: 'School gate latitude, so the app can show the live distance before check-in',
+  })
+  school_latitude: number | null;
+
+  @ApiProperty({ example: 80.2101, nullable: true, type: Number })
+  school_longitude: number | null;
+
   @ApiProperty({ description: 'The school location is set, so check-in can work' })
   geofence_ready: boolean;
 
