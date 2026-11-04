@@ -2,16 +2,20 @@ import { randomBytes } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
+import { DataSource, EntityManager, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 import { AppException, AuthUser, listQuery, offset, paginate, Paginated } from '@app/common';
 import { appConfig, AppConfig } from '../../config/configuration';
+import { currentYearId, currentYearSql, onlyCurrentYear } from '../../shared/academic-year';
 import { todayIn } from '../../shared/dates';
+import { parentsOfStudent, teachersOfStudent } from '../../shared/student-contacts';
 import { TEMPLATES } from '../notifications/notification-templates.catalog';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AssignmentsService } from '../staff/assignments.service';
-import { AgoraTokenService } from './agora-token.service';
+import { agoraSignatureValid, AgoraTokenService } from './agora-token.service';
 import {
   CancelMeetingDto,
+  ExtendMeetingDto,
   JoinMeetingDto,
   MeetingCallLogDto,
   MeetingDetailDto,
@@ -26,20 +30,30 @@ import {
   TeacherMeetingInputDto,
 } from './dto/meeting.dto';
 import { MeetingCallLog } from './entities/meeting-call-log.entity';
-import { Meeting, MeetingParty } from './entities/meeting.entity';
+import { Meeting, MeetingParty, MeetingStatus } from './entities/meeting.entity';
 import {
+  ACTIVE_STATUSES,
+  actualMinutes,
+  AGORA_JOIN_EVENTS,
+  AGORA_LEAVE_EVENTS,
+  AGORA_LEAVE_REASONS,
   canJoin,
   channelName,
+  EMPTY_CLOSE_MINUTES,
+  END_REMINDER_MINUTES,
   endsAt,
-  JOIN_EARLY_MINUTES,
-  JOIN_GRACE_MINUTES,
-  joinBlockReason,
-  joinWindow,
-  minutesBetween,
-  OPEN_STATUSES,
-  REMINDER_MINUTES,
-  scheduleError,
+  extendedEnd,
+  extensionError,
   formatMeetingTime,
+  joinBlockReason,
+  joinOpensAt,
+  minutesBetween,
+  NO_SHOW_GRACE_MINUTES,
+  noShowAt,
+  OPEN_STATUSES,
+  scheduleError,
+  START_REMINDER_MINUTES,
+  statusAfterJoin,
 } from './meetings.logic';
 
 const DEFAULT_DURATION = 15;
@@ -54,17 +68,28 @@ interface NewMeeting {
   actor: AuthUser;
 }
 
-interface PersonRow {
-  id: number;
-  name: string;
-}
-
 interface StudentRow {
   id: number;
   name: string;
   class_name: string | null;
   section_name: string | null;
 }
+
+interface AgoraNotice {
+  noticeId?: string;
+  productId?: number;
+  eventType?: number;
+  payload?: {
+    channelName?: string;
+    uid?: number;
+    ts?: number;
+    clientSeq?: number;
+    reason?: number;
+    platform?: number;
+  };
+}
+
+const AGORA_PLATFORMS: Record<number, string> = { 1: 'android', 2: 'ios', 5: 'windows', 6: 'linux', 7: 'web' };
 
 @Injectable()
 export class MeetingsService {
@@ -76,6 +101,7 @@ export class MeetingsService {
     private readonly agora: AgoraTokenService,
     private readonly assignments: AssignmentsService,
     private readonly notifications: NotificationsService,
+    private readonly realtime: RealtimeGateway,
     private readonly dataSource: DataSource,
     @Inject(appConfig.KEY) private readonly app: AppConfig,
   ) {}
@@ -130,8 +156,7 @@ export class MeetingsService {
     party: MeetingParty,
     query: MobileMeetingQueryDto,
   ): Promise<Paginated<MeetingDto>> {
-    const qb = this.meetings.createQueryBuilder('m');
-    this.scopeToParty(qb, actor, party);
+    const qb = this.partyQuery(actor, party);
     if (query.student_id) qb.andWhere('m.student_id = :studentId', { studentId: query.student_id });
     if (query.scope === 'upcoming') {
       qb.andWhere('m.status IN (:...open)', { open: OPEN_STATUSES }).orderBy('m.scheduled_at', 'ASC');
@@ -153,18 +178,12 @@ export class MeetingsService {
     const meeting = await this.findForParty(actor, party, id);
     const now = new Date();
     this.assertJoinable(meeting, now);
-    const grant = this.agora.issue(
-      meeting.channel_name,
-      actor.id,
-      joinWindow(meeting.scheduled_at, meeting.duration_minutes).closes_at,
-      now,
-    );
+    const grant = this.agora.issue(meeting.channel_name, actor.id, now);
+    const before = meeting.status;
     const saved = await this.dataSource.transaction(async (manager) => {
-      if (meeting.status === 'scheduled') {
-        meeting.status = 'live';
-        meeting.started_at = now;
-      }
-      await this.closeOpenLogs(manager, meeting.id, now, actor.id);
+      meeting.status = statusAfterJoin(meeting.status, meeting.scheduled_end_at, now);
+      meeting.started_at ??= now;
+      await this.closeOpenLogs(manager, meeting.id, now, actor.id, 'rejoined');
       await manager.save(
         manager.create(MeetingCallLog, {
           school_id: meeting.school_id,
@@ -172,52 +191,65 @@ export class MeetingsService {
           user_id: actor.id,
           party,
           platform: dto.platform ?? 'android',
+          source: 'app',
           joined_at: now,
         }),
       );
       return manager.save(meeting);
     });
-    return {
-      provider: 'agora',
-      app_id: grant.app_id,
-      channel_name: saved.channel_name,
-      uid: actor.id,
-      token: grant.token,
-      expires_at: grant.expires_at,
-      meeting: (await this.present([saved]))[0],
-    };
+    if (before !== saved.status) this.announceStatus(saved, actor.id);
+    this.realtime.toUsers(this.members(saved), 'meeting.participant', {
+      meeting_id: saved.id,
+      user_id: actor.id,
+      party,
+      action: 'joined',
+    });
+    return this.grantResponse(saved, actor, grant);
   }
 
   async renewToken(actor: AuthUser, party: MeetingParty, id: number): Promise<MeetingJoinDto> {
     const meeting = await this.findForParty(actor, party, id);
     const now = new Date();
     this.assertJoinable(meeting, now);
-    const grant = this.agora.issue(
-      meeting.channel_name,
-      actor.id,
-      joinWindow(meeting.scheduled_at, meeting.duration_minutes).closes_at,
-      now,
-    );
-    return {
-      provider: 'agora',
-      app_id: grant.app_id,
-      channel_name: meeting.channel_name,
-      uid: actor.id,
-      token: grant.token,
-      expires_at: grant.expires_at,
-      meeting: (await this.present([meeting]))[0],
-    };
+    return this.grantResponse(meeting, actor, this.agora.issue(meeting.channel_name, actor.id, now));
   }
 
   async leave(actor: AuthUser, party: MeetingParty, id: number): Promise<MeetingDto> {
     const meeting = await this.findForParty(actor, party, id);
-    await this.closeOpenLogs(this.dataSource.manager, meeting.id, new Date(), actor.id);
+    await this.closeOpenLogs(this.dataSource.manager, meeting.id, new Date(), actor.id, 'left');
+    this.realtime.toUsers(this.members(meeting), 'meeting.participant', {
+      meeting_id: meeting.id,
+      user_id: actor.id,
+      party,
+      action: 'left',
+    });
     return (await this.present([meeting]))[0];
   }
 
-  async end(actor: AuthUser, party: MeetingParty, id: number): Promise<MeetingDto> {
-    const meeting = await this.findForParty(actor, party, id);
-    if (meeting.status !== 'live') {
+  async extend(actor: AuthUser, id: number, dto: ExtendMeetingDto): Promise<MeetingDto> {
+    const meeting = await this.findForParty(actor, 'teacher', id);
+    if (!ACTIVE_STATUSES.includes(meeting.status)) {
+      throw AppException.conflict('Only a meeting in progress can be extended', 'MEETING_NOT_LIVE');
+    }
+    const tooLong = extensionError(meeting.extended_minutes, dto.minutes);
+    if (tooLong) throw AppException.validation([{ field: 'minutes', message: tooLong }]);
+    const now = new Date();
+    Object.assign(meeting, {
+      scheduled_end_at: extendedEnd(meeting.scheduled_end_at, dto.minutes, now),
+      extended_minutes: meeting.extended_minutes + dto.minutes,
+      extended_at: now,
+      extended_by: actor.id,
+      status: 'in_progress' as MeetingStatus,
+      end_reminder_sent_at: null,
+    });
+    const saved = await this.meetings.save(meeting);
+    this.announceStatus(saved, actor.id);
+    return (await this.present([saved]))[0];
+  }
+
+  async end(actor: AuthUser, id: number): Promise<MeetingDto> {
+    const meeting = await this.findForParty(actor, 'teacher', id);
+    if (!ACTIVE_STATUSES.includes(meeting.status)) {
       throw AppException.conflict(
         meeting.status === 'scheduled'
           ? 'Nobody has joined yet. Cancel the meeting instead.'
@@ -227,10 +259,16 @@ export class MeetingsService {
     }
     const now = new Date();
     const saved = await this.dataSource.transaction(async (manager) => {
-      Object.assign(meeting, { status: 'completed', ended_at: now, ended_by: actor.id });
-      await this.closeOpenLogs(manager, meeting.id, now);
+      Object.assign(meeting, { status: 'completed', ended_at: now, ended_by: actor.id, end_reason: 'host_ended' });
+      await this.closeOpenLogs(manager, meeting.id, now, undefined, 'meeting_ended');
       return manager.save(meeting);
     });
+    this.announceStatus(saved, actor.id);
+    const kicked = await this.agora.endChannel(saved.channel_name);
+    if (kicked.rule_id) {
+      await this.meetings.update(saved.id, { agora_kick_rule_id: kicked.rule_id });
+      saved.agora_kick_rule_id = kicked.rule_id;
+    }
     return (await this.present([saved]))[0];
   }
 
@@ -246,6 +284,7 @@ export class MeetingsService {
     const saved = await this.meetings.save(meeting);
     const [presented] = await this.present([saved]);
     const other = party === 'teacher' ? presented.parent : presented.teacher;
+    this.announceStatus(saved, actor.id);
     await this.notify(TEMPLATES.MEETING_CANCELLED, other.id, {
       by: actor.name,
       student: presented.student.name,
@@ -256,62 +295,23 @@ export class MeetingsService {
     return presented;
   }
 
-  async teachersForStudent(schoolId: number, studentId: number): Promise<MeetingTeacherOptionDto[]> {
-    const rows: { id: number; name: string; is_class_teacher: boolean; subjects: string[] | null }[] =
-      await this.dataSource.query(
-        `WITH sec AS (
-           SELECT e.section_id FROM student_enrollments e
-           JOIN academic_years y ON y.id = e.academic_year_id AND y.is_current AND y.deleted_at IS NULL
-           WHERE e.student_id = $1 AND y.school_id = $2 LIMIT 1
-         ),
-         teachers AS (
-           SELECT s.class_teacher_user_id AS user_id, NULL::int AS subject_id, s.id AS section_id
-           FROM sec JOIN sections s ON s.id = sec.section_id WHERE s.class_teacher_user_id IS NOT NULL
-           UNION ALL
-           SELECT ta.teacher_user_id, ta.subject_id, ta.section_id
-           FROM sec JOIN teacher_assignments ta ON ta.section_id = sec.section_id AND ta.deleted_at IS NULL
-         )
-         SELECT u.id, u.name,
-                bool_or(s.class_teacher_user_id = u.id) AS is_class_teacher,
-                array_remove(array_agg(DISTINCT sub.name), NULL) AS subjects
-         FROM teachers t
-         JOIN users u ON u.id = t.user_id AND u.deleted_at IS NULL AND u.status = 'active'
-         JOIN sections s ON s.id = t.section_id
-         LEFT JOIN subjects sub ON sub.id = t.subject_id
-         GROUP BY u.id, u.name
-         ORDER BY bool_or(s.class_teacher_user_id = u.id) DESC, u.name`,
-        [studentId, schoolId],
-      );
-    return rows.map((row) => ({
-      id: Number(row.id),
-      name: row.name,
-      is_class_teacher: Boolean(row.is_class_teacher),
-      subjects: row.subjects ?? [],
-    }));
+  teachersForStudent(schoolId: number, studentId: number): Promise<MeetingTeacherOptionDto[]> {
+    return teachersOfStudent(this.dataSource.manager, schoolId, studentId);
   }
 
-  async parentsForStudent(schoolId: number, studentId: number): Promise<MeetingParentOptionDto[]> {
-    const rows: { id: number; name: string; relation: string; is_primary: boolean }[] = await this.dataSource.query(
-      `SELECT DISTINCT ON (u.id) u.id, g.name, sg.relation, sg.is_primary
-       FROM student_guardians sg
-       JOIN guardians g ON g.id = sg.guardian_id AND g.deleted_at IS NULL
-       JOIN users u ON u.id = g.user_id AND u.deleted_at IS NULL AND u.status = 'active'
-       WHERE sg.student_id = $1 AND sg.school_id = $2
-       ORDER BY u.id, sg.is_primary DESC`,
-      [studentId, schoolId],
-    );
-    return rows
-      .map((row) => ({ id: Number(row.id), name: row.name, relation: row.relation, is_primary: row.is_primary }))
-      .sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.name.localeCompare(b.name));
+  parentsForStudent(schoolId: number, studentId: number): Promise<MeetingParentOptionDto[]> {
+    return parentsOfStudent(this.dataSource.manager, schoolId, studentId);
   }
 
   async list(schoolId: number, query: MeetingQueryDto): Promise<Paginated<MeetingDto>> {
-    const qb = this.meetings
-      .createQueryBuilder('m')
-      .innerJoin('users', 't', 't.id = m.teacher_user_id')
-      .innerJoin('users', 'p', 'p.id = m.parent_user_id')
-      .innerJoin('students', 's', 's.id = m.student_id')
-      .where('m.school_id = :schoolId', { schoolId });
+    const qb = onlyCurrentYear(
+      this.meetings
+        .createQueryBuilder('m')
+        .innerJoin('users', 't', 't.id = m.teacher_user_id')
+        .innerJoin('users', 'p', 'p.id = m.parent_user_id')
+        .innerJoin('students', 's', 's.id = m.student_id')
+        .where('m.school_id = :schoolId', { schoolId }),
+    );
     if (query.status) qb.andWhere('m.status = :status', { status: query.status });
     if (query.scheduled_by) qb.andWhere('m.scheduled_by = :by', { by: query.scheduled_by });
     if (query.teacher_user_id) qb.andWhere('m.teacher_user_id = :teacher', { teacher: query.teacher_user_id });
@@ -354,13 +354,15 @@ export class MeetingsService {
   async insights(schoolId: number): Promise<MeetingInsightsDto> {
     const [row] = await this.dataSource.query(
       `SELECT COUNT(*) AS total,
-              COUNT(*) FILTER (WHERE (scheduled_at AT TIME ZONE $2)::date = $3::date) AS today,
-              COUNT(*) FILTER (WHERE status = 'scheduled' AND scheduled_at >= now()) AS upcoming,
-              COUNT(*) FILTER (WHERE status = 'live') AS live,
-              COUNT(*) FILTER (WHERE status = 'completed') AS completed,
-              COUNT(*) FILTER (WHERE status = 'missed') AS missed,
-              COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled
-       FROM meetings WHERE school_id = $1 AND deleted_at IS NULL`,
+              COUNT(*) FILTER (WHERE (m.scheduled_at AT TIME ZONE $2)::date = $3::date) AS today,
+              COUNT(*) FILTER (WHERE m.status = 'scheduled' AND m.scheduled_at >= now()) AS upcoming,
+              COUNT(*) FILTER (WHERE m.status IN ('in_progress', 'time_exceeded')) AS live,
+              COUNT(*) FILTER (WHERE m.status = 'time_exceeded') AS time_exceeded,
+              COUNT(*) FILTER (WHERE m.status = 'completed') AS completed,
+              COUNT(*) FILTER (WHERE m.status = 'missed') AS missed,
+              COUNT(*) FILTER (WHERE m.status = 'cancelled') AS cancelled
+       FROM meetings m ${currentYearSql('m')}
+       WHERE m.school_id = $1 AND m.deleted_at IS NULL`,
       [schoolId, this.app.timeZone, todayIn(this.app.timeZone)],
     );
     return {
@@ -368,6 +370,7 @@ export class MeetingsService {
       today: Number(row.today),
       upcoming: Number(row.upcoming),
       live: Number(row.live),
+      time_exceeded: Number(row.time_exceeded),
       completed: Number(row.completed),
       missed: Number(row.missed),
       cancelled: Number(row.cancelled),
@@ -375,31 +378,113 @@ export class MeetingsService {
   }
 
   async detail(schoolId: number, id: number): Promise<MeetingDetailDto> {
-    const meeting = await this.meetings.findOneBy({ id, school_id: schoolId });
+    const meeting = await onlyCurrentYear(this.meetings.createQueryBuilder('m'))
+      .where('m.id = :id AND m.school_id = :schoolId', { id, schoolId })
+      .getOne();
     if (!meeting) throw AppException.notFound('Meeting not found', 'MEETING_NOT_FOUND');
     return this.withCallLog(meeting);
   }
 
-  @Cron(CronExpression.EVERY_MINUTE, { name: 'meeting-reminders' })
-  async tick(): Promise<void> {
-    const now = new Date();
-    await this.sendReminders(now).catch((error: Error) => this.logger.warn(`Reminders failed: ${error.message}`));
-    await this.closeExpired(now).catch((error: Error) => this.logger.warn(`Closing meetings failed: ${error.message}`));
+  async receiveAgoraEvent(rawBody: Buffer | undefined, signature: string | undefined): Promise<{ ok: true }> {
+    if (!this.agora.webhookSecret) {
+      throw AppException.unavailable('Agora notifications are switched off', 'AGORA_WEBHOOK_OFF');
+    }
+    if (!rawBody || !agoraSignatureValid(rawBody, signature, this.agora.webhookSecret)) {
+      throw AppException.unauthorized('Signature is missing or wrong', 'SIGNATURE_INVALID');
+    }
+    let notice: AgoraNotice;
+    try {
+      notice = JSON.parse(rawBody.toString('utf8')) as AgoraNotice;
+    } catch {
+      throw AppException.badRequest('Body is not JSON', 'VALIDATION_FAILED');
+    }
+    await this.applyAgoraEvent(notice);
+    return { ok: true };
   }
 
-  async sendReminders(now: Date): Promise<number> {
-    const due: Meeting[] = await this.meetings
-      .createQueryBuilder()
-      .update(Meeting)
-      .set({ reminder_sent_at: now })
-      .where("status = 'scheduled' AND reminder_sent_at IS NULL AND deleted_at IS NULL")
-      .andWhere('scheduled_at <= :soon AND scheduled_at > :late', {
-        soon: new Date(now.getTime() + REMINDER_MINUTES * 60_000),
-        late: new Date(now.getTime() - JOIN_EARLY_MINUTES * 60_000),
-      })
-      .returning('*')
-      .execute()
-      .then((result) => (result.raw as Meeting[]).map((row) => this.meetings.create(row)));
+  async applyAgoraEvent(notice: AgoraNotice): Promise<void> {
+    const type = Number(notice.eventType);
+    const payload = notice.payload ?? {};
+    const joining = AGORA_JOIN_EVENTS.includes(type);
+    const leaving = AGORA_LEAVE_EVENTS.includes(type);
+    if (!joining && !leaving) return;
+    if (!payload.channelName || !payload.uid) return;
+    const meeting = await this.meetings.findOneBy({ channel_name: payload.channelName });
+    if (!meeting) return;
+    const party: MeetingParty | null =
+      payload.uid === meeting.teacher_user_id ? 'teacher' : payload.uid === meeting.parent_user_id ? 'parent' : null;
+    if (!party) {
+      this.logger.warn(`Agora: uid ${payload.uid} is not a participant of meeting ${meeting.id}`);
+      return;
+    }
+    const at = payload.ts ? new Date(payload.ts * 1000) : new Date();
+    const seq = payload.clientSeq !== undefined ? String(payload.clientSeq) : null;
+    const open = await this.logs.findOne({
+      where: { meeting_id: meeting.id, user_id: payload.uid, left_at: IsNull() },
+      order: { joined_at: 'DESC' },
+    });
+    if (joining) {
+      if (open) {
+        if (!open.confirmed_at) await this.logs.update(open.id, { confirmed_at: at, client_seq: seq });
+        return;
+      }
+      const duplicate = seq
+        ? await this.logs.findOneBy({ meeting_id: meeting.id, user_id: payload.uid, client_seq: seq })
+        : null;
+      if (duplicate) return;
+      await this.logs.save(
+        this.logs.create({
+          school_id: meeting.school_id,
+          meeting_id: meeting.id,
+          user_id: payload.uid,
+          party,
+          platform: AGORA_PLATFORMS[Number(payload.platform)] ?? 'other',
+          source: 'agora',
+          joined_at: at,
+          confirmed_at: at,
+          client_seq: seq,
+        }),
+      );
+      return;
+    }
+    if (!open) return;
+    if (seq && open.client_seq && BigInt(seq) < BigInt(open.client_seq)) return;
+    await this.logs.update(open.id, {
+      left_at: at,
+      leave_reason: AGORA_LEAVE_REASONS[Number(payload.reason)] ?? 'other',
+    });
+    this.realtime.toUsers(this.members(meeting), 'meeting.participant', {
+      meeting_id: meeting.id,
+      user_id: payload.uid,
+      party,
+      action: 'left',
+    });
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE, { name: 'meeting-lifecycle' })
+  async tick(): Promise<void> {
+    const now = new Date();
+    for (const [name, step] of [
+      ['start reminders', () => this.sendStartReminders(now)],
+      ['over time', () => this.markOverTime(now)],
+      ['end reminders', () => this.sendEndReminders(now)],
+      ['no-shows', () => this.markMissed(now)],
+      ['empty meetings', () => this.closeEmpty(now)],
+    ] as const) {
+      await step().catch((error: Error) => this.logger.warn(`${name} failed: ${error.message}`));
+    }
+  }
+
+  async sendStartReminders(now: Date): Promise<number> {
+    const due = await this.claim(
+      'reminder_sent_at',
+      "status = 'scheduled' AND reminder_sent_at IS NULL AND scheduled_at <= :soon AND scheduled_at > :late",
+      {
+        soon: new Date(now.getTime() + START_REMINDER_MINUTES * 60_000),
+        late: new Date(now.getTime() - START_REMINDER_MINUTES * 60_000),
+      },
+      now,
+    );
     for (const meeting of due) {
       const [presented] = await this.present([meeting]);
       const time = formatMeetingTime(meeting.scheduled_at, this.app.timeZone);
@@ -413,28 +498,104 @@ export class MeetingsService {
         student: presented.student.name,
         time,
       });
+      this.realtime.toUsers(this.members(meeting), 'meeting.reminder', {
+        meeting_id: meeting.id,
+        kind: 'start',
+        starts_at: meeting.scheduled_at,
+      });
     }
     return due.length;
   }
 
-  async closeExpired(now: Date): Promise<number> {
-    const [rows] = (await this.dataSource.query(
-      `UPDATE meetings
-       SET status = CASE WHEN status = 'live' THEN 'completed' ELSE 'missed' END,
-           ended_at = CASE WHEN status = 'live' THEN $1 ELSE ended_at END,
-           updated_at = now()
-       WHERE status IN ('scheduled', 'live') AND deleted_at IS NULL
-         AND scheduled_at + make_interval(mins => duration_minutes + $2) < $1
-       RETURNING id`,
-      [now, JOIN_GRACE_MINUTES],
-    )) as [{ id: number }[], number];
-    if (rows.length) {
-      await this.logs.update(
-        { meeting_id: In(rows.map((row) => Number(row.id))), left_at: IsNull() },
-        { left_at: now },
-      );
+  async sendEndReminders(now: Date): Promise<number> {
+    const due = await this.claim(
+      'end_reminder_sent_at',
+      "status = 'in_progress' AND end_reminder_sent_at IS NULL AND scheduled_end_at <= :soon AND scheduled_end_at > :now",
+      { soon: new Date(now.getTime() + END_REMINDER_MINUTES * 60_000), now },
+      now,
+    );
+    for (const meeting of due) {
+      const [presented] = await this.present([meeting]);
+      const time = formatMeetingTime(meeting.scheduled_end_at, this.app.timeZone);
+      for (const [userId, other] of [
+        [presented.parent.id, presented.teacher.name],
+        [presented.teacher.id, presented.parent.name],
+      ] as const) {
+        await this.notify(TEMPLATES.MEETING_ENDING, userId, {
+          host: other,
+          student: presented.student.name,
+          minutes: String(END_REMINDER_MINUTES),
+          time,
+        });
+      }
+      this.realtime.toUsers(this.members(meeting), 'meeting.reminder', {
+        meeting_id: meeting.id,
+        kind: 'ending',
+        minutes_left: END_REMINDER_MINUTES,
+        ends_at: meeting.scheduled_end_at,
+      });
     }
-    return rows.length;
+    return due.length;
+  }
+
+  async markOverTime(now: Date): Promise<number> {
+    const changed = await this.transition(
+      "status = 'in_progress' AND scheduled_end_at <= $1::timestamptz",
+      "status = 'time_exceeded'",
+      [now],
+    );
+    changed.forEach((meeting) => this.announceStatus(meeting, null));
+    return changed.length;
+  }
+
+  async markMissed(now: Date): Promise<number> {
+    const changed = await this.transition(
+      "status = 'scheduled' AND scheduled_end_at + make_interval(mins => $2::int) < $1::timestamptz",
+      "status = 'missed'",
+      [now, NO_SHOW_GRACE_MINUTES],
+    );
+    changed.forEach((meeting) => this.announceStatus(meeting, null));
+    return changed.length;
+  }
+
+  async closeEmpty(now: Date): Promise<number> {
+    const changed = await this.transition(
+      `status IN ('in_progress', 'time_exceeded') AND scheduled_end_at < $1::timestamptz
+       AND NOT EXISTS (SELECT 1 FROM meeting_call_logs l WHERE l.meeting_id = meetings.id AND l.left_at IS NULL)
+       AND COALESCE((SELECT MAX(l.left_at) FROM meeting_call_logs l WHERE l.meeting_id = meetings.id), started_at, scheduled_at)
+           <= $1::timestamptz - make_interval(mins => $2::int)`,
+      `status = 'completed', end_reason = 'empty',
+       ended_at = COALESCE((SELECT MAX(l.left_at) FROM meeting_call_logs l WHERE l.meeting_id = meetings.id), $1::timestamptz)`,
+      [now, EMPTY_CLOSE_MINUTES],
+    );
+    changed.forEach((meeting) => this.announceStatus(meeting, null));
+    return changed.length;
+  }
+
+  private async transition(where: string, set: string, params: unknown[]): Promise<Meeting[]> {
+    const [rows] = (await this.dataSource.query(
+      `UPDATE meetings SET ${set}, updated_at = now()
+       WHERE deleted_at IS NULL AND ${where}
+       RETURNING *`,
+      params,
+    )) as [Meeting[], number];
+    return rows.map((row) => this.meetings.create(row));
+  }
+
+  private async claim(
+    column: 'reminder_sent_at' | 'end_reminder_sent_at',
+    where: string,
+    params: Record<string, unknown>,
+    now: Date,
+  ): Promise<Meeting[]> {
+    return this.meetings
+      .createQueryBuilder()
+      .update(Meeting)
+      .set({ [column]: now })
+      .where(`deleted_at IS NULL AND ${where}`, params)
+      .returning('*')
+      .execute()
+      .then((result) => (result.raw as Meeting[]).map((row) => this.meetings.create(row)));
   }
 
   private async create(input: NewMeeting): Promise<MeetingDto> {
@@ -443,11 +604,12 @@ export class MeetingsService {
     const error = scheduleError(scheduledAt, now);
     if (error) throw AppException.validation([error]);
     const duration = input.dto.duration_minutes ?? DEFAULT_DURATION;
+    const academicYearId = await currentYearId(this.dataSource.manager, input.schoolId);
     const [clash] = await this.dataSource.query(
       `SELECT id FROM meetings
-       WHERE deleted_at IS NULL AND status IN ('scheduled', 'live')
+       WHERE deleted_at IS NULL AND status IN ('scheduled', 'in_progress', 'time_exceeded')
          AND (teacher_user_id = $1 OR parent_user_id = $2)
-         AND scheduled_at < $4 AND scheduled_at + make_interval(mins => duration_minutes) > $3
+         AND scheduled_at < $4 AND scheduled_end_at > $3
        LIMIT 1`,
       [input.teacherUserId, input.parentUserId, scheduledAt, endsAt(scheduledAt, duration)],
     );
@@ -457,6 +619,7 @@ export class MeetingsService {
     const saved = await this.meetings.save(
       this.meetings.create({
         school_id: input.schoolId,
+        academic_year_id: academicYearId,
         student_id: input.studentId,
         teacher_user_id: input.teacherUserId,
         parent_user_id: input.parentUserId,
@@ -465,9 +628,10 @@ export class MeetingsService {
         agenda: input.dto.agenda ?? null,
         scheduled_at: scheduledAt,
         duration_minutes: duration,
+        scheduled_end_at: endsAt(scheduledAt, duration),
         status: 'scheduled',
         channel_name: channelName(input.schoolId, randomBytes(8).toString('hex')),
-        reminder_sent_at: scheduledAt.getTime() <= now.getTime() + REMINDER_MINUTES * 60_000 ? now : null,
+        reminder_sent_at: scheduledAt.getTime() <= now.getTime() + START_REMINDER_MINUTES * 60_000 ? now : null,
         created_by: input.actor.id,
       }),
     );
@@ -478,14 +642,12 @@ export class MeetingsService {
       time: formatMeetingTime(saved.scheduled_at, this.app.timeZone),
       title: saved.title,
     });
+    this.realtime.toUsers([presented.to.id], 'meeting.status', this.statusPayload(saved, input.actor.id));
     return presented;
   }
 
-  private scopeToParty(
-    qb: ReturnType<Repository<Meeting>['createQueryBuilder']>,
-    actor: AuthUser,
-    party: MeetingParty,
-  ): void {
+  private partyQuery(actor: AuthUser, party: MeetingParty): SelectQueryBuilder<Meeting> {
+    const qb = this.meetings.createQueryBuilder('m');
     if (party === 'teacher') {
       qb.where('m.teacher_user_id = :userId AND m.school_id = :schoolId', {
         userId: actor.id,
@@ -494,14 +656,11 @@ export class MeetingsService {
     } else {
       qb.where('m.parent_user_id = :userId', { userId: actor.id });
     }
+    return onlyCurrentYear(qb);
   }
 
   private async findForParty(actor: AuthUser, party: MeetingParty, id: number): Promise<Meeting> {
-    const meeting = await this.meetings.findOneBy(
-      party === 'teacher'
-        ? { id, teacher_user_id: actor.id, school_id: this.teacherSchool(actor) }
-        : { id, parent_user_id: actor.id },
-    );
+    const meeting = await this.partyQuery(actor, party).andWhere('m.id = :id', { id }).getOne();
     if (!meeting) throw AppException.notFound('Meeting not found', 'MEETING_NOT_FOUND');
     return meeting;
   }
@@ -511,16 +670,59 @@ export class MeetingsService {
     if (blocked) throw AppException.conflict(blocked.message, blocked.code);
   }
 
+  private grantResponse(
+    meeting: Meeting,
+    actor: AuthUser,
+    grant: { app_id: string; token: string; expires_at: Date },
+  ): Promise<MeetingJoinDto> {
+    return this.present([meeting]).then(([presented]) => ({
+      provider: 'agora' as const,
+      app_id: grant.app_id,
+      channel_name: meeting.channel_name,
+      uid: actor.id,
+      token: grant.token,
+      expires_at: grant.expires_at,
+      role: actor.id === meeting.teacher_user_id ? ('host' as const) : ('participant' as const),
+      meeting: presented,
+    }));
+  }
+
+  private members(meeting: Pick<Meeting, 'teacher_user_id' | 'parent_user_id'>): number[] {
+    return [Number(meeting.teacher_user_id), Number(meeting.parent_user_id)];
+  }
+
+  private statusPayload(meeting: Meeting, by: number | null) {
+    return {
+      meeting_id: meeting.id,
+      status: meeting.status,
+      ends_at: meeting.scheduled_end_at,
+      extended_minutes: meeting.extended_minutes,
+      ended_at: meeting.ended_at,
+      end_reason: meeting.end_reason,
+      by,
+    };
+  }
+
+  private announceStatus(meeting: Meeting, by: number | null): void {
+    this.realtime.toUsers(this.members(meeting), 'meeting.status', this.statusPayload(meeting, by));
+  }
+
   private teacherSchool(actor: AuthUser): number {
     if (!actor.school_id) throw AppException.forbidden('Your account is not linked to a school', 'NO_SCHOOL');
     return actor.school_id;
   }
 
-  private async closeOpenLogs(manager: EntityManager, meetingId: number, at: Date, userId?: number): Promise<void> {
+  private async closeOpenLogs(
+    manager: EntityManager,
+    meetingId: number,
+    at: Date,
+    userId?: number,
+    reason = 'left',
+  ): Promise<void> {
     await manager.update(
       MeetingCallLog,
       { meeting_id: meetingId, left_at: IsNull(), ...(userId ? { user_id: userId } : {}) },
-      { left_at: at },
+      { left_at: at, leave_reason: reason },
     );
   }
 
@@ -538,8 +740,10 @@ export class MeetingsService {
       user: { id: row.user_id, name: people.get(row.user_id) ?? '' },
       party: row.party,
       platform: row.platform,
+      source: row.source,
       joined_at: row.joined_at,
       left_at: row.left_at,
+      leave_reason: row.leave_reason,
       minutes: minutesBetween(row.joined_at, row.left_at),
     }));
     return { ...presented, call_log };
@@ -548,7 +752,10 @@ export class MeetingsService {
   private async people(ids: (number | null)[]): Promise<Map<number, string>> {
     const unique = [...new Set(ids.filter((id): id is number => Boolean(id)))];
     if (!unique.length) return new Map();
-    const rows: PersonRow[] = await this.dataSource.query(`SELECT id, name FROM users WHERE id = ANY($1)`, [unique]);
+    const rows: { id: number; name: string }[] = await this.dataSource.query(
+      `SELECT id, name FROM users WHERE id = ANY($1)`,
+      [unique],
+    );
     return new Map(rows.map((row) => [Number(row.id), row.name]));
   }
 
@@ -556,8 +763,17 @@ export class MeetingsService {
     if (!rows.length) return [];
     const now = new Date();
     const studentIds = [...new Set(rows.map((row) => row.student_id))];
-    const [people, students, relations] = await Promise.all([
-      this.people(rows.flatMap((row) => [row.teacher_user_id, row.parent_user_id, row.cancelled_by])),
+    const yearIds = [...new Set(rows.map((row) => row.academic_year_id))];
+    const [people, students, relations, years] = await Promise.all([
+      this.people(
+        rows.flatMap((row) => [
+          row.teacher_user_id,
+          row.parent_user_id,
+          row.cancelled_by,
+          row.extended_by,
+          row.ended_by,
+        ]),
+      ),
       this.dataSource.query(
         `SELECT s.id, concat_ws(' ', s.first_name, s.last_name) AS name, c.name AS class_name, sec.name AS section_name
          FROM students s
@@ -573,9 +789,14 @@ export class MeetingsService {
          WHERE sg.student_id = ANY($1) AND g.user_id IS NOT NULL`,
         [studentIds],
       ) as Promise<{ student_id: number; user_id: number; relation: string }[]>,
+      this.dataSource.query(`SELECT id, name FROM academic_years WHERE id = ANY($1)`, [yearIds]) as Promise<
+        { id: number; name: string }[]
+      >,
     ]);
     const studentMap = new Map(students.map((row) => [Number(row.id), row]));
     const relationMap = new Map(relations.map((row) => [`${row.student_id}:${row.user_id}`, row.relation]));
+    const yearMap = new Map(years.map((row) => [Number(row.id), row.name]));
+    const ref = (id: number | null) => (id ? { id, name: people.get(id) ?? '' } : null);
     return rows.map((row) => {
       const student = studentMap.get(row.student_id);
       const teacher = {
@@ -590,15 +811,19 @@ export class MeetingsService {
         role: 'parent' as const,
         label: relationMap.get(`${row.student_id}:${row.parent_user_id}`) ?? 'Parent',
       };
-      const window = joinWindow(row.scheduled_at, row.duration_minutes);
       return {
         id: row.id,
         title: row.title,
         agenda: row.agenda,
         status: row.status,
         scheduled_at: row.scheduled_at,
-        ends_at: endsAt(row.scheduled_at, row.duration_minutes),
+        ends_at: row.scheduled_end_at,
         duration_minutes: row.duration_minutes,
+        extended_minutes: row.extended_minutes,
+        extended_at: row.extended_at,
+        extended_by: ref(row.extended_by),
+        academic_year: { id: row.academic_year_id, name: yearMap.get(row.academic_year_id) ?? '' },
+        host_id: row.teacher_user_id,
         scheduled_by: row.scheduled_by,
         from: row.scheduled_by === 'teacher' ? teacher : parent,
         to: row.scheduled_by === 'teacher' ? parent : teacher,
@@ -612,12 +837,14 @@ export class MeetingsService {
             : null,
         },
         can_join: canJoin(row, now),
-        join_opens_at: window.opens_at,
-        join_closes_at: window.closes_at,
+        join_opens_at: joinOpensAt(row),
+        join_closes_at: row.status === 'scheduled' ? noShowAt(row) : null,
         started_at: row.started_at,
         ended_at: row.ended_at,
-        call_minutes: minutesBetween(row.started_at, row.ended_at),
-        cancelled_by: row.cancelled_by ? { id: row.cancelled_by, name: people.get(row.cancelled_by) ?? '' } : null,
+        call_minutes: actualMinutes(row, now),
+        ended_by: ref(row.ended_by),
+        end_reason: row.end_reason,
+        cancelled_by: ref(row.cancelled_by),
         cancel_reason: row.cancel_reason,
         created_at: row.created_at,
       };

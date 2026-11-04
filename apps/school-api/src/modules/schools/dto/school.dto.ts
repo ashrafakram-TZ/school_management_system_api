@@ -17,7 +17,7 @@ import {
 } from 'class-validator';
 import { ListQueryDto, toBoolean } from '@app/common';
 import { MOBILE_PATTERN, normalizeMobile } from '../../../shared/mobile';
-import { SCHOOL_BOARDS, SchoolBoard } from '../entities/school.entity';
+import { DIARY_REVIEW_MODES, DiaryReviewMode, SCHOOL_BOARDS, SchoolBoard } from '../entities/school.entity';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const emptyToNull = ({ value }: { value: unknown }) =>
@@ -118,6 +118,32 @@ export class SchoolProfileDto {
   staff_reporting_time?: string;
 
   @ApiPropertyOptional({
+    enum: DIARY_REVIEW_MODES,
+    example: 'remarks',
+    description:
+      'all: the office reviews every diary post before parents see it. remarks: only remarks and feedback are reviewed; homework and notes go out at once.',
+  })
+  @IsOptional()
+  @IsIn(DIARY_REVIEW_MODES)
+  diary_review_mode?: DiaryReviewMode;
+
+  @ApiPropertyOptional({
+    example: '08:00',
+    description: 'Chat office hours start (Monday to Saturday, not on holidays)',
+  })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'chat_office_start must be HH:MM, for example 08:00' })
+  chat_office_start?: string;
+
+  @ApiPropertyOptional({
+    example: '17:00',
+    description: 'Chat office hours end. Parent messages after this reach the teacher when office hours start again.',
+  })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'chat_office_end must be HH:MM, for example 17:00' })
+  chat_office_end?: string;
+
+  @ApiPropertyOptional({
     example: 41,
     nullable: true,
     type: Number,
@@ -214,6 +240,15 @@ export class SchoolDto {
 
   @ApiProperty({ example: '08:45' })
   staff_reporting_time: string;
+
+  @ApiProperty({ enum: DIARY_REVIEW_MODES, example: 'remarks' })
+  diary_review_mode: DiaryReviewMode;
+
+  @ApiProperty({ example: '08:00' })
+  chat_office_start: string;
+
+  @ApiProperty({ example: '17:00' })
+  chat_office_end: string;
 
   @ApiProperty({ example: 'Asia/Kolkata' })
   timezone: string;

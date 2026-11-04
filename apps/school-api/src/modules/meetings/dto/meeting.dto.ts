@@ -94,6 +94,19 @@ export class CancelMeetingDto {
   reason?: string | null;
 }
 
+export class ExtendMeetingDto {
+  @ApiProperty({
+    example: 10,
+    minimum: 5,
+    maximum: 60,
+    description: 'Minutes to add to the scheduled end (120 in total)',
+  })
+  @Max(60)
+  @Min(5)
+  @IsInt({ message: 'minutes must be a whole number of minutes' })
+  minutes: number;
+}
+
 export class JoinMeetingDto {
   @ApiPropertyOptional({ enum: CALL_PLATFORMS, default: 'android' })
   @IsOptional()
@@ -105,7 +118,8 @@ export class MobileMeetingQueryDto extends PaginationDto {
   @ApiPropertyOptional({
     enum: MEETING_SCOPES,
     default: 'upcoming',
-    description: 'upcoming: scheduled or live, soonest first. past: ended, missed or cancelled, newest first.',
+    description:
+      'upcoming: scheduled, in progress or over time, soonest first. past: completed, missed or cancelled, newest first. Current academic year only.',
   })
   @IsOptional()
   @IsIn(MEETING_SCOPES)
@@ -204,11 +218,26 @@ export class MeetingDto {
   @ApiProperty({ example: '2026-11-11T16:30:00.000+05:30' })
   scheduled_at: Date;
 
-  @ApiProperty({ example: '2026-11-11T16:45:00.000+05:30' })
+  @ApiProperty({ example: '2026-11-11T16:45:00.000+05:30', description: 'Scheduled end, including extensions' })
   ends_at: Date;
 
-  @ApiProperty({ example: 15 })
+  @ApiProperty({ example: 15, description: 'Booked length' })
   duration_minutes: number;
+
+  @ApiProperty({ example: 0, description: 'Minutes the host added' })
+  extended_minutes: number;
+
+  @ApiProperty({ nullable: true, type: Date })
+  extended_at: Date | null;
+
+  @ApiProperty({ type: RefDto, nullable: true })
+  extended_by: RefDto | null;
+
+  @ApiProperty({ type: RefDto, description: 'Academic year the meeting belongs to' })
+  academic_year: RefDto;
+
+  @ApiProperty({ example: 9, description: 'Host user id (the teacher). Only the host can extend or end.' })
+  host_id: number;
 
   @ApiProperty({ enum: MEETING_PARTIES, example: 'teacher', description: 'Who booked it' })
   scheduled_by: MeetingParty;
@@ -228,14 +257,23 @@ export class MeetingDto {
   @ApiProperty({ type: MeetingStudentDto })
   student: MeetingStudentDto;
 
-  @ApiProperty({ example: false, description: 'True from 10 minutes before the start until 30 minutes after the end' })
+  @ApiProperty({
+    example: false,
+    description:
+      'True from 10 minutes before the start. A meeting that has started stays joinable until the host ends it, even past its end time.',
+  })
   can_join: boolean;
 
   @ApiProperty({ example: '2026-11-11T16:20:00.000+05:30' })
   join_opens_at: Date;
 
-  @ApiProperty({ example: '2026-11-11T17:15:00.000+05:30' })
-  join_closes_at: Date;
+  @ApiProperty({
+    example: '2026-11-11T17:15:00.000+05:30',
+    nullable: true,
+    type: Date,
+    description: 'Only for a meeting nobody has joined: after this it becomes missed. null once it has started.',
+  })
+  join_closes_at: Date | null;
 
   @ApiProperty({ nullable: true, type: Date })
   started_at: Date | null;
@@ -243,8 +281,23 @@ export class MeetingDto {
   @ApiProperty({ nullable: true, type: Date })
   ended_at: Date | null;
 
-  @ApiProperty({ example: 12, nullable: true, type: Number, description: 'From the first join to the end' })
+  @ApiProperty({
+    example: 12,
+    nullable: true,
+    type: Number,
+    description: 'Actual length: first join to the end (or to now while it runs), independent of the booked length',
+  })
   call_minutes: number | null;
+
+  @ApiProperty({ type: RefDto, nullable: true })
+  ended_by: RefDto | null;
+
+  @ApiProperty({
+    enum: ['host_ended', 'empty'],
+    nullable: true,
+    description: 'host_ended, or empty when everyone had left for 15 minutes after the end time',
+  })
+  end_reason: 'host_ended' | 'empty' | null;
 
   @ApiProperty({ type: RefDto, nullable: true })
   cancelled_by: RefDto | null;
@@ -265,6 +318,12 @@ export class MeetingCallLogDto {
 
   @ApiProperty({ example: 'android' })
   platform: string;
+
+  @ApiProperty({ enum: ['app', 'agora'], description: 'app: reported by the app; agora: from the Agora webhook' })
+  source: 'app' | 'agora';
+
+  @ApiProperty({ nullable: true, type: String, example: 'network', description: 'Agora leave reason when known' })
+  leave_reason: string | null;
 
   @ApiProperty({ example: '2026-11-11T16:29:10.000+05:30' })
   joined_at: Date;
@@ -297,8 +356,14 @@ export class MeetingJoinDto {
   @ApiProperty({ example: '007eJxTYJ...', description: 'Agora RTC token (publisher)' })
   token: string;
 
-  @ApiProperty({ example: '2026-11-11T17:15:00.000+05:30', description: 'Call POST .../token before this' })
+  @ApiProperty({
+    example: '2026-11-11T16:45:00.000+05:30',
+    description: 'Short-lived (AGORA_TOKEN_TTL_SECONDS). Call POST .../token on onTokenPrivilegeWillExpire.',
+  })
   expires_at: Date;
+
+  @ApiProperty({ enum: ['host', 'participant'], description: 'host can extend and end for everyone' })
+  role: 'host' | 'participant';
 
   @ApiProperty({ type: MeetingDto })
   meeting: MeetingDto;
@@ -314,8 +379,11 @@ export class MeetingInsightsDto {
   @ApiProperty({ example: 8 })
   upcoming: number;
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({ example: 1, description: 'in_progress or time_exceeded right now' })
   live: number;
+
+  @ApiProperty({ example: 1, description: 'Running past the scheduled end' })
+  time_exceeded: number;
 
   @ApiProperty({ example: 25 })
   completed: number;

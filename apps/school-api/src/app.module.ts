@@ -21,6 +21,10 @@ import { StudentsModule } from './modules/students/students.module';
 import { FleetModule } from './modules/fleet/fleet.module';
 import { FleetOpsModule } from './modules/fleet-ops/fleet-ops.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
+import { DiaryModule } from './modules/diary/diary.module';
+import { AnnouncementsModule } from './modules/announcements/announcements.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { MobileModule } from './modules/mobile/mobile.module';
 import { SecurityModule } from './modules/security/security.module';
 import { StaffModule } from './modules/staff/staff.module';
@@ -66,6 +70,10 @@ import { UsersModule } from './modules/users/users.module';
     DashboardModule,
     AchievementsModule,
     MeetingsModule,
+    DiaryModule,
+    AnnouncementsModule,
+    ChatModule,
+    RealtimeModule,
     MobileModule,
     FleetModule,
     FleetOpsModule,

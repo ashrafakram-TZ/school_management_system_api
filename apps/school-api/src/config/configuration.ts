@@ -99,7 +99,12 @@ export const telematicsConfig = registerAs('telematics', () => ({
 export const videoConfig = registerAs('video', () => ({
   agoraAppId: process.env.AGORA_APP_ID ?? '',
   agoraAppCertificate: process.env.AGORA_APP_CERTIFICATE ?? '',
-  tokenTtlSeconds: Number(process.env.AGORA_TOKEN_TTL_SECONDS ?? 3600),
+  tokenTtlSeconds: Number(process.env.AGORA_TOKEN_TTL_SECONDS ?? 900),
+  customerId: process.env.AGORA_CUSTOMER_ID ?? '',
+  customerSecret: process.env.AGORA_CUSTOMER_SECRET ?? '',
+  restUrl: (process.env.AGORA_REST_URL || 'https://api.sd-rtn.com').replace(/\/+$/, ''),
+  webhookSecret: process.env.AGORA_WEBHOOK_SECRET ?? '',
+  timeoutMs: 8000,
 }));
 
 export const securityConfig = registerAs('security', () => ({
