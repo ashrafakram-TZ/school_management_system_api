@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { AppException } from '@app/common';
 import { User } from '../users/entities/user.entity';
-import { FULL_ACCESS_ROLES, PERMISSION_CATALOG, ROLES } from './access.catalog';
+import { FULL_ACCESS_ROLES, PERMISSION_CATALOG, roleConflict, ROLES } from './access.catalog';
 import { AppSection, Role } from './entities/role.entity';
 import { Permission } from './entities/permission.entity';
 
@@ -64,6 +64,8 @@ export class AccessService {
     const roles = await this.roles.find({ where: { code: In(unique) } });
     const missing = unique.filter((code) => !roles.some((role) => role.code === code));
     if (missing.length) throw AppException.badRequest(`Unknown role: ${missing.join(', ')}`, 'UNKNOWN_ROLE');
+    const conflict = roleConflict(unique);
+    if (conflict) throw AppException.validation([{ field: 'role_codes', message: conflict }]);
     if (unique.includes(ROLES.SUPER_ADMIN) && !actorRoles.includes(ROLES.SUPER_ADMIN)) {
       throw AppException.forbidden('Only a super admin can assign the super admin role');
     }

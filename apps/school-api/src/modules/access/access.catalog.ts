@@ -219,3 +219,14 @@ export function rolePermissions(role: RoleDefinition): string[] {
 }
 
 export const FULL_ACCESS_ROLES: string[] = [ROLES.SUPER_ADMIN];
+
+const TEACHING_ROLES: string[] = [ROLES.TEACHER, ROLES.HOD];
+const BUS_CREW_ROLES: string[] = [ROLES.DRIVER, ROLES.ATTENDANT];
+
+export function roleConflict(codes: string[]): string | null {
+  const teaching = codes.filter((code) => TEACHING_ROLES.includes(code));
+  const crew = codes.filter((code) => BUS_CREW_ROLES.includes(code));
+  if (!teaching.length || !crew.length) return null;
+  const name = (code: string) => ROLE_CATALOG.find((role) => role.code === code)?.name ?? code;
+  return `A person cannot be both ${name(teaching[0]!)} and ${name(crew[0]!)}. Teaching staff and bus crew must be different people.`;
+}

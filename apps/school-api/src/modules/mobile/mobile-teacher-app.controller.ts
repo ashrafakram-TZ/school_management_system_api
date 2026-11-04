@@ -10,6 +10,8 @@ import {
   LeaderboardQueryDto,
 } from '../achievements/dto/achievement.dto';
 import { AssignmentsService } from '../staff/assignments.service';
+import { BannerService } from './banner.service';
+import { BannerListDto } from './dto/banner.dto';
 import { StudentHistoryDto, TodayTimetableDto } from './dto/teacher-app.dto';
 import { MobileAccessService } from './mobile-access.service';
 import { TeacherAppService } from './teacher-app.service';
@@ -25,7 +27,31 @@ export class MobileTeacherAppController {
     private readonly assignments: AssignmentsService,
     private readonly teacherApp: TeacherAppService,
     private readonly achievements: AchievementsService,
+    private readonly banner: BannerService,
   ) {}
+
+  @Get('banner')
+  @ApiOperation({
+    summary: 'Alert banner for the Staff app home screen',
+    description: [
+      'What needs the teacher’s attention today, most important first (critical, warning, info). Show the first one as the banner, or all as a stack. An empty `banners` list means nothing to show. Switch on `code`; on tap open `action.screen` with `action.params`.',
+      '',
+      '| code | When | severity | action.screen |',
+      '|---|---|---|---|',
+      '| HOLIDAY_TODAY | Holiday or Sunday | info | home |',
+      '| ON_LEAVE_TODAY | The teacher is on approved leave today | info | timetable |',
+      '| CHECK_IN_PENDING | Not checked in yet (warning after the school reporting time) | warning or info | check_in |',
+      '| ATTENDANCE_NOT_MARKED | One per class-teacher section with no attendance today | warning | attendance (`section_id`) |',
+      '| PROXY_TODAY | Proxy periods given to the teacher today | info | timetable |',
+      '| COMBINED_CLASS_TODAY | Students of another section sit in the teacher’s class today | info | timetable |',
+      '| LEAVE_REQUESTS_PENDING | Parent leave requests waiting for the class teacher | info | student_leaves |',
+      '| UNREAD_ALERTS | Unread in-app notifications | info | notifications |',
+    ].join('\n'),
+  })
+  @ApiEnvelope(BannerListDto)
+  banners(@CurrentUser() user: AuthUser) {
+    return this.banner.teacher(this.access.teacherSchool(user), user);
+  }
 
   @Get('timetable/today')
   @ApiOperation({

@@ -91,7 +91,9 @@ One Flutter app for Parent, Staff (teacher) and Driver. One sign-in per person; 
 
 Sample number with both roles in the demo school: **9791543989** (Teacher of 6 - A Computer Science, and Parent of Aadhavan Senthil). It gets \`"mobile_apps": ["staff", "parent"]\`.
 
-Sample number with all three mobile roles: **9566331808** (Venkatesh). Teacher of 7 - A Mathematics and 3 - A English (class teacher of 3 - A), Parent of Nila Narayanan (3 - A, rides Bus 2), and Driver of Bus 2. It gets \`"mobile_apps": ["parent", "staff", "driver"]\`, so the app shows the role picker with all three.`;
+Second sample: **9566331808** (Venkatesh). Teacher of 7 - A Mathematics and 3 - A English (class teacher of 3 - A), and Parent of Nila Narayanan (3 - A, rides Bus 2). It gets \`"mobile_apps": ["parent", "staff"]\`.
+
+A person cannot be both teaching staff (Teacher, HOD) and bus crew (Driver, Attendant); the admin gets \`400 VALIDATION_FAILED\` on \`role_codes\`. Parent can go with either.`;
 
 const AFTER_VERIFY =
   'After sign-in, read data.user.mobile_apps: one item → open that home directly; two or more → show a chooser from data.user.sections (label) and open the chosen home. Switching later needs no new OTP or token.';

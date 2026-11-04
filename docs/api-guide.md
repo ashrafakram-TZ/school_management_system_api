@@ -45,6 +45,8 @@ Anyone else gets `403 APP_NOT_ALLOWED` at the OTP request, so no SMS is sent.
 
 ### One app, switch roles inside it
 
+A person cannot be both teaching staff (Teacher, HOD) and bus crew (Driver, Attendant): assigning both returns `400 VALIDATION_FAILED` on `role_codes`. Parent can be combined with either.
+
 One person, one sign-in. A number that is both a parent and a teacher signs in once; the profile (`data.user` in the sign-in response, or `GET /me`) says which sections they can open:
 
 ```json
@@ -308,6 +310,7 @@ Sign in as 9000000004 (Priya, class teacher of 6-A) to try it.
 | `GET /mobile/teacher/students/{id}/history` | Student full history: profile and parents (with mobile numbers), attendance this year and this month, leave, remarks and discipline (`behaviour`), `achievements`, health, documents and ID card |
 | `GET` / `POST /mobile/teacher/students/{id}/achievements` | List or add an achievement: `{ "title": "Inter-school football", "category": "sports", "level": "district", "result": "winner", "event_scope": "inter_school", "venue_type": "outdoor", "participation": "team", "team_name": "U-14 team", "prize_received": "Trophy", "school_reward": "Medal", "achieved_on": "2026-10-24" }`. Sports needs `venue_type`. Parents are told |
 | `GET /mobile/teacher/sections/{id}/activity-ranking` | My section ranked by sports and activity points (default all non-academic; `?category=sports` for sports only) |
+| `GET /mobile/teacher/banner` | Home alert banner: `{ date, banners: [{ code, severity, title, message, count?, action: { screen, params? } }] }`, most important first. Codes: `HOLIDAY_TODAY`, `ON_LEAVE_TODAY`, `CHECK_IN_PENDING`, `ATTENDANCE_NOT_MARKED` (`params.section_id`), `PROXY_TODAY`, `COMBINED_CLASS_TODAY`, `LEAVE_REQUESTS_PENDING`, `UNREAD_ALERTS`. Empty list = nothing to show |
 | `GET /mobile/teacher/substitutions` | Classes I cover for absent teachers, today and the next 7 days: date, period and time, section, subject, room, who is away, note |
 
 Staff leave status moves `pending_hod` → `pending_principal` → `approved` (or `rejected` at any step). With no HOD in the department it starts at `pending_principal`.

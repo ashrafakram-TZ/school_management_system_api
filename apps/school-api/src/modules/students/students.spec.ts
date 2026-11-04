@@ -3,7 +3,7 @@ import { AppException, AuthenticatedRequest } from '@app/common';
 import { AppConfig } from '../../config/configuration';
 import { monthStartIn, todayIn, yearsBetween } from '../../shared/dates';
 import { resolveSchoolId } from '../../shared/school-context';
-import { PERMISSIONS, ROLE_CATALOG, rolePermissions } from '../access/access.catalog';
+import { PERMISSIONS, ROLE_CATALOG, roleConflict, rolePermissions } from '../access/access.catalog';
 import { SequencesService } from '../schools/sequences.service';
 import { holidayDays } from '../setup/holidays.service';
 import { Section } from '../setup/entities/section.entity';
@@ -212,5 +212,20 @@ describe('GuardiansService.ensureLogin', () => {
       update: jest.fn(),
     } as unknown as EntityManager;
     expect(await service.ensureLogin(manager, { ...guardian(), user_id: 20 } as Guardian)).toBeNull();
+  });
+});
+
+describe('role conflicts', () => {
+  it('stops a teacher from also being bus crew', () => {
+    expect(roleConflict(['TEACHER', 'DRIVER'])).toBe(
+      'A person cannot be both Teacher and Driver. Teaching staff and bus crew must be different people.',
+    );
+    expect(roleConflict(['HOD', 'ATTENDANT'])).toContain('Head of department and Bus attendant');
+  });
+
+  it('allows a parent who teaches or drives', () => {
+    expect(roleConflict(['TEACHER', 'PARENT'])).toBeNull();
+    expect(roleConflict(['DRIVER', 'PARENT'])).toBeNull();
+    expect(roleConflict(['DRIVER', 'ATTENDANT'])).toBeNull();
   });
 });

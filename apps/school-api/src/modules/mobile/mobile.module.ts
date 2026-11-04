@@ -17,6 +17,7 @@ import { MobileAccessService } from './mobile-access.service';
 import { MobileParentAttendanceController, MobileTeacherAttendanceController } from './mobile-attendance.controller';
 import { MobileParentChildController, MobileTeacherController } from './mobile.controller';
 import { MobileParentAchievementsController, MobileTeacherAppController } from './mobile-teacher-app.controller';
+import { BannerService } from './banner.service';
 import { TeacherAppService } from './teacher-app.service';
 
 @Module({
@@ -44,7 +45,7 @@ import { TeacherAppService } from './teacher-app.service';
     MobileTeacherAppController,
     MobileParentAchievementsController,
   ],
-  providers: [MobileAccessService, TeacherAppService],
+  providers: [MobileAccessService, TeacherAppService, BannerService],
   exports: [MobileAccessService],
 })
 export class MobileModule {}
