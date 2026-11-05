@@ -6,17 +6,28 @@ import { IsMobile } from '../../../shared/mobile';
 import { Platform, PLATFORMS } from '../../users/entities/user-device.entity';
 import { UserProfileDto } from '../../users/dto/user-response.dto';
 
+const APP_HASH = /^[A-Za-z0-9+/]{11}$/;
+
 export class RequestOtpDto {
   @IsMobile()
   mobile: string;
 
   @ApiPropertyOptional({
-    example: 'FA+9qCX9VSu',
-    description: 'Android SMS Retriever app hash, appended to the SMS so the app can read the OTP automatically',
+    example: 'Xy12AbCd3Ef',
+    description:
+      'Android SMS Retriever app hash (11 characters). The Auth Service adds it to the SMS so the app reads the OTP by itself. Leave it out on iOS and the web.',
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(20)
+  @Matches(APP_HASH, { message: 'app_hash must be the 11-character Android app hash' })
+  app_hash?: string;
+
+  @ApiPropertyOptional({
+    example: 'Xy12AbCd3Ef',
+    deprecated: true,
+    description: 'Old name of app_hash, still accepted. app_hash wins when both are sent.',
+  })
+  @IsOptional()
+  @Matches(APP_HASH, { message: 'app_signature must be the 11-character Android app hash' })
   app_signature?: string;
 
   @ApiPropertyOptional({

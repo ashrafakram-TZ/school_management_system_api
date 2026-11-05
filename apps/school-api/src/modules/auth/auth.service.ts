@@ -38,16 +38,26 @@ export class AuthService {
     private readonly access: AccessService,
   ) {}
 
-  async requestOtp(dto: RequestOtpDto, meta: RequestMeta): Promise<OtpSentDto> {
+  requestOtp(dto: RequestOtpDto, meta: RequestMeta): Promise<OtpSentDto> {
+    return this.sendOtp(dto, meta, false);
+  }
+
+  resendOtp(dto: RequestOtpDto, meta: RequestMeta): Promise<OtpSentDto> {
+    return this.sendOtp(dto, meta, true);
+  }
+
+  private async sendOtp(dto: RequestOtpDto, meta: RequestMeta, resend: boolean): Promise<OtpSentDto> {
     const user = await this.activeUser(dto.mobile);
     if (dto.app) await this.assertApp(user, dto.app);
-    if (!this.central.enabled) return this.otp.issue(dto.mobile, meta.ip, dto.app_signature, user.name);
+    const appHash = dto.app_hash ?? dto.app_signature ?? null;
+    if (!this.central.enabled) return this.otp.issue(dto.mobile, meta.ip, appHash ?? undefined, user.name);
     try {
-      await this.central.sendOtp(user.mobile);
+      if (resend) await this.central.resendOtp(user.mobile, appHash);
+      else await this.central.sendOtp(user.mobile, appHash);
     } catch (error) {
       if (!(error instanceof CentralUserMissing)) throw error;
       await this.registerCentral(user);
-      await this.central.sendOtp(user.mobile);
+      await this.central.sendOtp(user.mobile, appHash);
     }
     return {
       mobile_masked: maskMobile(user.mobile),

@@ -429,35 +429,56 @@ export class ExamsService {
     const result: StudentExamResultDto[] = [];
     for (const row of rows) {
       const exam = await this.find(schoolId, Number(row.id));
-      const results = await this.classResults(exam, Number(row.class_id));
-      const mine = results.rows.find((item) => item.student_id === studentId);
-      if (!mine) continue;
-      result.push({
-        exam: this.ref(exam),
-        class_name: row.class_name,
-        section_name: mine.section_name,
-        total: mine.total,
-        max_total: mine.max_total,
-        percent: mine.percent,
-        grade: mine.grade,
-        result: mine.result,
-        section_rank: mine.section_rank,
-        section_size: results.rows.filter((item) => item.section_id === mine.section_id).length,
-        class_rank: mine.class_rank,
-        class_size: results.rows.length,
-        subjects: results.subjects.map((paper) => {
-          const score = mine.subjects.find((item) => item.subject_id === paper.id)!;
-          return {
-            ...score,
-            name: paper.name,
-            code: paper.code,
-            max_marks: paper.max_marks,
-            pass_marks: paper.pass_marks,
-          };
-        }),
-      });
+      const mine = await this.resultFor(exam, Number(row.class_id), row.class_name, studentId);
+      if (mine) result.push(mine);
     }
     return result;
+  }
+
+  async resultFor(
+    exam: Exam,
+    classId: number,
+    className: string,
+    studentId: number,
+  ): Promise<StudentExamResultDto | null> {
+    return (await this.resultsByStudent(exam, classId, className)).get(studentId) ?? null;
+  }
+
+  async resultsByStudent(exam: Exam, classId: number, className: string): Promise<Map<number, StudentExamResultDto>> {
+    const results = await this.classResults(exam, classId);
+    return new Map(results.rows.map((row) => [row.student_id, this.studentResult(exam, className, results, row)]));
+  }
+
+  private studentResult(
+    exam: Exam,
+    className: string,
+    results: ClassResults,
+    mine: ResultRowDto,
+  ): StudentExamResultDto {
+    return {
+      exam: this.ref(exam),
+      class_name: className,
+      section_name: mine.section_name,
+      total: mine.total,
+      max_total: mine.max_total,
+      percent: mine.percent,
+      grade: mine.grade,
+      result: mine.result,
+      section_rank: mine.section_rank,
+      section_size: results.rows.filter((item) => item.section_id === mine.section_id).length,
+      class_rank: mine.class_rank,
+      class_size: results.rows.length,
+      subjects: results.subjects.map((paper) => {
+        const score = mine.subjects.find((item) => item.subject_id === paper.id)!;
+        return {
+          ...score,
+          name: paper.name,
+          code: paper.code,
+          max_marks: paper.max_marks,
+          pass_marks: paper.pass_marks,
+        };
+      }),
+    };
   }
 
   async childResults(userId: number, studentId: number): Promise<StudentExamResultDto[]> {

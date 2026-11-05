@@ -79,8 +79,8 @@ const SIGN_IN_FLOW = `### Mobile app: sign-in and role switch (read first)
 
 One Flutter app for Parent, Staff (teacher) and Driver. One sign-in per person; one token works for every role they have.
 
-1. **Mobile number screen**: \`POST /auth/otp/request\` with \`{ "mobile": "9791543989", "app": "mobile" }\`. A number with no Parent, Teacher, HOD, Driver or Attendant role gets **403 APP_NOT_ALLOWED** and no SMS is sent. Admin-only users (super admin, principal, AO) cannot use the mobile app.
-2. **OTP screen**: \`POST /auth/otp/verify\` with \`{ "mobile", "otp", "client": { "app": "mobile", "platform": "android" } }\`. Save \`access_token\` and \`refresh_token\`; read \`data.user.mobile_apps\` and \`data.user.sections\`.
+1. **Mobile number screen**: \`POST /auth/otp/request\` with \`{ "mobile": "9791543989", "app": "mobile" }\`. A number with no Parent, Teacher, HOD, Driver or Attendant role gets **403 APP_NOT_ALLOWED** and no SMS is sent. Admin-only users (super admin, principal, AO) cannot use the mobile app. **Android:** also send \`"app_hash": "Xy12AbCd3Ef"\` (the app's 11-character SMS Retriever hash) so the app reads the OTP from the SMS by itself; leave it out on iOS.
+2. **OTP screen**: \`POST /auth/otp/verify\` with \`{ "mobile", "otp", "client": { "app": "mobile", "platform": "android" } }\`. Save \`access_token\` and \`refresh_token\`; read \`data.user.mobile_apps\` and \`data.user.sections\`. **Resend OTP** button (after \`resend_in\` seconds): \`POST /auth/otp/resend\` with the same body as step 1 (including \`app_hash\` on Android); too early gives **429 OTP_RESEND_TOO_SOON**.
 3. **Where to go next** (decide from \`mobile_apps\`):
 
 | \`mobile_apps\` | Open |
@@ -97,6 +97,10 @@ One Flutter app for Parent, Staff (teacher) and Driver. One sign-in per person; 
 
 - **Parent**: \`GET /mobile/parent/children/{id}/bus\` gives status, headline, ETA to the child's stop and the bus position. **Driver**: \`GET /mobile/driver/trips/today\`, start with \`POST /mobile/driver/trips\`, phone GPS fallback \`POST /mobile/driver/trips/{id}/positions\`.
 - **Live updates**: socket.io namespace \`/live\` with \`{ auth: { token } }\`; \`emit('trip.subscribe', { trip_id })\`, then receive \`trip.position\` and \`trip.event\`. A parent can follow only their own child's trip.
+
+### Report card (parent)
+
+\`GET /mobile/parent/children/{id}/report-card\` gives the marksheet: \`columns\` (one per published exam, grouped by \`terms\`), \`subjects[].cells\` in the same order, \`overall\`, \`attendance\`, \`remarks\`. No query = the whole year with every term; \`?term_id=\` or \`?exam_id=\` for one term or exam; fill the pickers from \`options\`. Download the PDF from \`pdf_path\` (\`GET .../report-card/pdf\`, same query).
 
 Sample number with both roles in the demo school: **9791543989** (Teacher of 6 - A Computer Science, and Parent of Aadhavan Senthil). It gets \`"mobile_apps": ["staff", "parent"]\`.
 
@@ -115,6 +119,7 @@ function describeSignIn(document: OpenAPIObject): OpenAPIObject {
   const summaries: Record<string, string> = central
     ? {
         'otp/request': 'Step 1: send OTP (sent by the Tamilzorous Auth Service)',
+        'otp/resend': 'Resend OTP button: send the OTP again through the Tamilzorous Auth Service',
         'otp/verify': 'Step 2: verify OTP with the Tamilzorous Auth Service and get the school session',
         refresh: 'Refresh the school session; also renews the Auth Service sign-in',
         logout: 'Sign out here and at the Auth Service',

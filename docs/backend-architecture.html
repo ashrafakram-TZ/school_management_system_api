@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>School API Architecture</title>
+<meta name="description" content="Architecture of the Tamilzorous School Management API: NestJS modular monolith, one PostgreSQL database, Admin web and Flutter apps.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f6f8fb;
+    --surface: #ffffff;
+    --surface-2: #f1f5f9;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #64748b;
+    --primary: #0d9488;
+    --primary-soft: rgba(13, 148, 136, 0.1);
+    --blue: #2563eb;
+    --amber: #d97706;
+    --violet: #7c3aed;
+    --rose: #e11d48;
+    --cyan: #0891b2;
+    --code-bg: #0f172a;
+    --code-text: #e2e8f0;
+    --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #090d16;
+      --surface: #111827;
+      --surface-2: #1a2234;
+      --border: #243049;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --primary: #2dd4bf;
+      --primary-soft: rgba(45, 212, 191, 0.12);
+      --blue: #60a5fa;
+      --amber: #fbbf24;
+      --violet: #a78bfa;
+      --rose: #fb7185;
+      --cyan: #22d3ee;
+      --code-bg: #060912;
+      --code-text: #e2e8f0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #090d16;
+    --surface: #111827;
+    --surface-2: #1a2234;
+    --border: #243049;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --primary: #2dd4bf;
+    --primary-soft: rgba(45, 212, 191, 0.12);
+    --blue: #60a5fa;
+    --amber: #fbbf24;
+    --violet: #a78bfa;
+    --rose: #fb7185;
+    --cyan: #22d3ee;
+    --code-bg: #060912;
+    --code-text: #e2e8f0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.65; font-size: 15px; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 32px 16px 80px; }
+  header.top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 28px; }
+  .badge { display: inline-block; padding: 3px 12px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 10px; }
+  h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 800; line-height: 1.2; margin-bottom: 10px; }
+  .lead { color: var(--muted); font-size: 16px; max-width: 860px; }
+  .theme-btn { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 10px; padding: 8px 14px; font: 600 13px var(--font); cursor: pointer; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+  nav.toc a { text-decoration: none; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; }
+  nav.toc a:hover { border-color: var(--primary); color: var(--primary); }
+  section.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: clamp(18px, 3vw, 30px); margin-bottom: 24px; }
+  h2 { font-size: 21px; font-weight: 800; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  h2 .num { background: var(--primary); color: var(--surface); width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 13px; flex-shrink: 0; }
+  h3 { font-size: 16px; font-weight: 700; margin: 20px 0 10px; }
+  p { margin-bottom: 12px; }
+  .muted { color: var(--muted); }
+  code { font-family: var(--mono); font-size: 13px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+  pre { background: var(--code-bg); color: var(--code-text); border-radius: 12px; padding: 16px 18px; overflow-x: auto; font: 13px/1.6 var(--mono); margin: 12px 0 16px; }
+  pre code { background: none; border: 0; padding: 0; color: inherit; }
+  ul.list { padding-left: 20px; margin-bottom: 12px; }
+  ul.list li { margin-bottom: 6px; }
+  .table-wrap { overflow-x: auto; margin: 10px 0 16px; border: 1px solid var(--border); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 560px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--surface-2); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .g4 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .box { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .box h4 { font-size: 14px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .box p, .box li { font-size: 13.5px; color: var(--muted); margin-bottom: 4px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .stat { text-align: center; }
+  .stat b { display: block; font-size: 28px; font-weight: 800; color: var(--primary); line-height: 1.1; }
+  .stat span { font-size: 12.5px; color: var(--muted); }
+  .diagram { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin: 14px 0; overflow-x: auto; }
+  .diagram svg { display: block; min-width: 760px; width: 100%; height: auto; }
+  .diagram text { font-family: var(--font); fill: var(--text); }
+  .diagram .sub { fill: var(--muted); font-size: 11px; }
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 12px 0 16px; }
+  .flow .step { flex: 1 1 140px; background: var(--surface-2); border: 1px solid var(--border); border-top: 3px solid var(--primary); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+  .flow .step b { display: block; font-size: 13.5px; margin-bottom: 2px; }
+  .flow .step span { color: var(--muted); }
+  .pill { display: inline-block; font: 600 11.5px var(--mono); padding: 2px 8px; border-radius: 6px; margin: 2px 4px 2px 0; background: var(--primary-soft); color: var(--primary); }
+  .note { border-left: 4px solid var(--amber); background: var(--surface-2); border-radius: 0 10px 10px 0; padding: 12px 14px; margin: 12px 0; font-size: 14px; }
+  .rule { border-left-color: var(--rose); }
+  footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <span class="badge">Backend · School Management API</span>
+    <h1>School API Architecture</h1>
+    <p class="lead">How the Tamilzorous School Management backend is built: one NestJS 10 modular monolith with one PostgreSQL database. It serves the Admin web and the Flutter app (Staff, Parent and Driver). Bus tracking lives in the separate Telematics service, which this API only reads from.</p>
+  </div>
+  <button class="theme-btn" id="theme" type="button">Toggle theme</button>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <a href="#glance">At a glance</a>
+  <a href="#context">System context</a>
+  <a href="#request">Request lifecycle</a>
+  <a href="#layout">Code layout</a>
+  <a href="#modules">Modules</a>
+  <a href="#data">Data model</a>
+  <a href="#auth">Auth &amp; access</a>
+  <a href="#notify">Notifications</a>
+  <a href="#realtime">Realtime</a>
+  <a href="#jobs">Jobs</a>
+  <a href="#integrations">Integrations</a>
+  <a href="#conventions">API conventions</a>
+  <a href="#config">Config</a>
+  <a href="#db">Migrations</a>
+  <a href="#tests">Testing</a>
+  <a href="#next">What's next</a>
+</nav>
+
+<section class="card" id="glance">
+  <h2><span class="num">1</span>At a glance</h2>
+  <div class="grid g4">
+    <div class="box stat"><b>36</b><span>feature modules</span></div>
+    <div class="box stat"><b>75</b><span>entities (tables)</span></div>
+    <div class="box stat"><b>23</b><span>migrations</span></div>
+    <div class="box stat"><b>10</b><span>roles</span></div>
+    <div class="box stat"><b>2</b><span>Swagger docs (admin, mobile)</span></div>
+    <div class="box stat"><b>2</b><span>socket namespaces</span></div>
+    <div class="box stat"><b>6</b><span>scheduled jobs</span></div>
+    <div class="box stat"><b>46</b><span>unit test files</span></div>
+  </div>
+  <h3>Stack</h3>
+  <p>
+    <span class="pill">NestJS 10</span><span class="pill">TypeScript</span><span class="pill">TypeORM 0.3</span><span class="pill">PostgreSQL</span>
+    <span class="pill">class-validator</span><span class="pill">@nestjs/swagger</span><span class="pill">socket.io</span><span class="pill">@nestjs/schedule</span>
+    <span class="pill">kafkajs</span><span class="pill">firebase-admin</span><span class="pill">pdfkit</span><span class="pill">agora-token</span><span class="pill">Jest</span>
+  </p>
+  <p class="muted">Base URL <code>http://localhost:3000/api/v1</code> · Swagger <code>/api/docs/admin</code> and <code>/api/docs/mobile</code> · No Docker needed in this phase.</p>
+</section>
+
+<section class="card" id="context">
+  <h2><span class="num">2</span>System context</h2>
+  <p>Three clients, one API, one database. External services sit behind small clients, and each has an <code>.env</code> switch so local runs need none of them.</p>
+  <div class="diagram">
+    <svg viewBox="0 0 980 470" role="img" aria-label="System context diagram">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g style="color: var(--muted)" stroke="currentColor" stroke-width="1.6" fill="none" marker-end="url(#arr)">
+        <path d="M150 70 L395 190"/>
+        <path d="M150 170 L395 210"/>
+        <path d="M150 270 L395 230"/>
+        <path d="M490 270 L490 340"/>
+        <path d="M585 175 L790 60"/>
+        <path d="M585 195 L790 130"/>
+        <path d="M585 215 L790 200"/>
+        <path d="M585 235 L790 270"/>
+        <path d="M585 255 L790 340"/>
+        <path d="M790 410 L585 260"/>
+      </g>
+      <g>
+        <rect x="20" y="40" width="130" height="62" rx="12" fill="var(--surface)" stroke="var(--blue)" stroke-width="2"/>
+        <text x="85" y="67" text-anchor="middle" font-weight="700" font-size="14">Admin web</text>
+        <text x="85" y="86" text-anchor="middle" class="sub">React · admin/*</text>
+
+        <rect x="20" y="140" width="130" height="62" rx="12" fill="var(--surface)" stroke="var(--violet)" stroke-width="2"/>
+        <text x="85" y="167" text-anchor="middle" font-weight="700" font-size="14">Staff app</text>
+        <text x="85" y="186" text-anchor="middle" class="sub">Flutter · mobile/teacher</text>
+
+        <rect x="20" y="240" width="130" height="62" rx="12" fill="var(--surface)" stroke="var(--violet)" stroke-width="2"/>
+        <text x="85" y="263" text-anchor="middle" font-weight="700" font-size="14">Parent · Driver</text>
+        <text x="85" y="282" text-anchor="middle" class="sub">Flutter · mobile/parent|driver</text>
+
+        <rect x="395" y="150" width="190" height="120" rx="14" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="2.5"/>
+        <text x="490" y="190" text-anchor="middle" font-weight="800" font-size="16">School API</text>
+        <text x="490" y="210" text-anchor="middle" class="sub">NestJS modular monolith</text>
+        <text x="490" y="228" text-anchor="middle" class="sub">REST /api/v1 · socket.io</text>
+        <text x="490" y="246" text-anchor="middle" class="sub">/live · /comm</text>
+
+        <rect x="410" y="340" width="160" height="62" rx="12" fill="var(--surface)" stroke="var(--primary)" stroke-width="2"/>
+        <text x="490" y="367" text-anchor="middle" font-weight="700" font-size="14">PostgreSQL</text>
+        <text x="490" y="386" text-anchor="middle" class="sub">one DB · 75 tables</text>
+
+        <rect x="790" y="30" width="170" height="54" rx="12" fill="var(--surface)" stroke="var(--amber)" stroke-width="2"/>
+        <text x="875" y="53" text-anchor="middle" font-weight="700" font-size="13">Central Auth Service</text>
+        <text x="875" y="70" text-anchor="middle" class="sub">OTP · refresh · logout</text>
+
+        <rect x="790" y="104" width="170" height="54" rx="12" fill="var(--surface)" stroke="var(--amber)" stroke-width="2"/>
+        <text x="875" y="127" text-anchor="middle" font-weight="700" font-size="13">Notification Service</text>
+        <text x="875" y="144" text-anchor="middle" class="sub">Kafka · SMS / email</text>
+
+        <rect x="790" y="174" width="170" height="54" rx="12" fill="var(--surface)" stroke="var(--amber)" stroke-width="2"/>
+        <text x="875" y="197" text-anchor="middle" font-weight="700" font-size="13">Firebase (FCM)</text>
+        <text x="875" y="214" text-anchor="middle" class="sub">push to phones</text>
+
+        <rect x="790" y="244" width="170" height="54" rx="12" fill="var(--surface)" stroke="var(--amber)" stroke-width="2"/>
+        <text x="875" y="267" text-anchor="middle" font-weight="700" font-size="13">Agora</text>
+        <text x="875" y="284" text-anchor="middle" class="sub">video meetings</text>
+
+        <rect x="790" y="314" width="170" height="54" rx="12" fill="var(--surface)" stroke="var(--cyan)" stroke-width="2"/>
+        <text x="875" y="337" text-anchor="middle" font-weight="700" font-size="13">Telematics service</text>
+        <text x="875" y="354" text-anchor="middle" class="sub">read-only · port 3001</text>
+
+        <rect x="790" y="384" width="170" height="54" rx="12" fill="var(--surface)" stroke="var(--rose)" stroke-width="2"/>
+        <text x="875" y="407" text-anchor="middle" font-weight="700" font-size="13">Webhooks in</text>
+        <text x="875" y="424" text-anchor="middle" class="sub">biometric · agora · telematics</text>
+      </g>
+    </svg>
+  </div>
+  <div class="note rule"><b>Boundary:</b> no MQTT, device or telemetry tables here. Bus data comes only through <code>modules/fleet/telematics.client.ts</code> (<code>TELEMATICS_API_URL</code>, <code>TELEMATICS_API_KEY</code>).</div>
+</section>
+
+<section class="card" id="request">
+  <h2><span class="num">3</span>Request lifecycle</h2>
+  <p>Every HTTP request goes through the same pipeline, set up in <code>app.setup.ts</code> and <code>app.module.ts</code>.</p>
+  <div class="flow">
+    <div class="step"><b>requestContextMiddleware</b><span>request id and actor in AsyncLocalStorage</span></div>
+    <div class="step"><b>/api + URI version</b><span>default <code>v1</code>; <code>v2</code> only for breaking changes</span></div>
+    <div class="step"><b>JwtAuthGuard</b><span>global; skip with <code>@Public()</code></span></div>
+    <div class="step"><b>PermissionsGuard</b><span><code>@RequirePermissions</code> / <code>@RequireRoles</code></span></div>
+    <div class="step"><b>ValidationPipe</b><span>whitelist + forbidNonWhitelisted</span></div>
+    <div class="step"><b>Controller → Service</b><span>thin controller, rules in the service</span></div>
+    <div class="step"><b>ResponseInterceptor</b><span><code>{ status, message, data }</code>, times → +05:30</span></div>
+    <div class="step" style="border-top-color: var(--rose)"><b>AllExceptionsFilter</b><span>the only error handler</span></div>
+  </div>
+<pre><code>// success
+{ "status": 200, "message": "Student created", "data": { "id": 42, "name": "Arun" } }
+
+// error
+{ "status": 404, "error": "STUDENT_NOT_FOUND", "message": "Student not found" }
+{ "status": 400, "error": "VALIDATION_FAILED", "message": "...", "errors": [{ "field": "mobile", "message": "..." }] }</code></pre>
+  <p class="muted">School scope: every non-super-admin query filters by <code>actor.school_id</code>. A super admin picks a school with the <code>X-School-Id</code> header (<code>shared/school-context.ts</code>, <code>@SchoolId()</code>).</p>
+</section>
+
+<section class="card" id="layout">
+  <h2><span class="num">4</span>Code layout</h2>
+<pre><code>apps/school-api/src/
+  main.ts  app.module.ts  app.setup.ts  swagger.ts
+  config/          configuration.ts (typed) · env.validation.ts (fails fast on boot)
+  database/        database.module.ts · data-source.ts (CLI) · migrations/ · seeds/
+  shared/          mobile.ts (IsMobile, normalizeMobile) · crypto.ts · school-context.ts
+  modules/&lt;feature&gt;/  *.controller.ts · *.service.ts · *.logic.ts · dto/ · entities/ · *.spec.ts
+libs/common/src/   @app/common: BaseEntity, AppException, filters, interceptors, pipes,
+                   ListQueryDto, listQuery, paginate, ApiEnvelope, auth decorators
+test/              e2e smoke specs</code></pre>
+  <div class="grid g3">
+    <div class="box"><h4>Controller</h4><p>Routes, Swagger decorators, permissions. Returns plain data. No try/catch.</p></div>
+    <div class="box"><h4>Service</h4><p>Business rules, school scoping, transactions, notifications.</p></div>
+    <div class="box"><h4>*.logic.ts</h4><p>Pure functions (bus timeline, roster sort, banners, payslip lines). Unit-tested with no DB.</p></div>
+  </div>
+  <p style="margin-top:12px" class="muted">Shared code is imported only through <code>@app/common</code>. <code>libs/common</code> never imports from <code>apps</code>.</p>
+</section>
+
+<section class="card" id="modules">
+  <h2><span class="num">5</span>Modules</h2>
+  <p>Grouped by business area. Each admin route has a mobile twin where the app needs it, and both use the <b>same service and tables</b>.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Area</th><th>Modules</th><th>Main routes</th></tr></thead>
+    <tbody>
+      <tr><td><b>Platform</b></td><td>auth, users, access, security, files, health, sms, notifications, jobs</td><td><code>auth/*</code> <code>me</code> <code>admin/users</code> <code>admin/roles</code> <code>files/*</code> <code>admin/notifications</code></td></tr>
+      <tr><td><b>School setup</b></td><td>schools, setup, timetable</td><td><code>admin/schools</code> <code>admin/academic-years</code> <code>admin/classes</code> <code>admin/timetable</code></td></tr>
+      <tr><td><b>Students</b></td><td>students, student-records, student-lifecycle, student-import, achievements</td><td><code>admin/admissions</code> <code>admin/students</code> <code>admin/guardians</code> <code>admin/student-import</code></td></tr>
+      <tr><td><b>Academics</b></td><td>attendance, exams, diary</td><td><code>admin/attendance</code> <code>admin/exams</code> <code>admin/diary</code></td></tr>
+      <tr><td><b>Staff</b></td><td>staff, staff-attendance, staff-leave, substitutes, payroll</td><td><code>admin/staff</code> <code>admin/staff-attendance</code> <code>admin/substitutes</code> <code>admin/payroll</code></td></tr>
+      <tr><td><b>Finance</b></td><td>fees</td><td><code>admin/fees</code> · <code>mobile/parent/children/:id/fees</code></td></tr>
+      <tr><td><b>Transport</b></td><td>transport, tracking, fleet, fleet-ops</td><td><code>admin/transport</code> <code>admin/fleet/*</code> <code>mobile/driver/trips</code></td></tr>
+      <tr><td><b>Communication</b></td><td>announcements, chat, meetings, app-banners, realtime</td><td><code>admin/announcements</code> <code>admin/chat</code> <code>admin/meetings</code> <code>admin/app-banners</code></td></tr>
+      <tr><td><b>Apps</b></td><td>mobile, dashboard</td><td><code>mobile/teacher/*</code> <code>mobile/parent/*</code> <code>admin/dashboard</code> <code>admin/students/:id/parent-view</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="card" id="data">
+  <h2><span class="num">6</span>Data model rules</h2>
+  <div class="grid g2">
+    <div class="box"><h4><span class="dot" style="background:var(--primary)"></span>Base entities</h4>
+      <p><code>BaseEntity</code> (integer <code>id</code>, <code>created_at</code>, <code>updated_at</code>), <code>TrackedEntity</code> (+ <code>created_by</code>, filled by <code>CreatedBySubscriber</code>), <code>SchoolScopedEntity</code> (+ <code>school_id</code>).</p></div>
+    <div class="box"><h4><span class="dot" style="background:var(--blue)"></span>Naming and time</h4>
+      <p>snake_case for every column, DTO field and JSON key. All times are <code>timestamptz</code>, shown in <code>APP_TIMEZONE</code> (+05:30).</p></div>
+    <div class="box"><h4><span class="dot" style="background:var(--rose)"></span>People are never hard-deleted</h4>
+      <p>No cascade delete on users, students, staff or guardians. Soft delete only.</p></div>
+    <div class="box"><h4><span class="dot" style="background:var(--violet)"></span>Encrypted fields</h4>
+      <p>Staff bank account and PAN use <code>FieldCipher</code> (AES-256-GCM, <code>DATA_ENCRYPTION_KEY</code>), with only the last 4 digits in clear. Central Auth tokens on sessions are encrypted the same way.</p></div>
+    <div class="box"><h4><span class="dot" style="background:var(--amber)"></span>Signed QR</h4>
+      <p>ID cards carry <code>TZS1.&lt;student&gt;.&lt;version&gt;.&lt;signature&gt;</code> (<code>QR_SIGNING_SECRET</code>). Replacing a card bumps <code>card_version</code>.</p></div>
+    <div class="box"><h4><span class="dot" style="background:var(--cyan)"></span>Signed file links</h4>
+      <p>Files download through short-lived signed links (<code>FILE_SIGNING_SECRET</code>, <code>FILE_URL_TTL_SECONDS</code>), so no token is needed in an <code>&lt;img&gt;</code>.</p></div>
+  </div>
+  <div class="note"><b>Postgres gotcha:</b> <code>user</code> is a reserved word, so use the alias <code>u</code> in query builders and raw SQL.</div>
+</section>
+
+<section class="card" id="auth">
+  <h2><span class="num">7</span>Auth and access</h2>
+  <h3>Sign-in (OTP)</h3>
+  <div class="flow">
+    <div class="step"><b>POST /auth/otp/request</b><span>our user must be active · calls Central <code>send-otp</code> (registers on first use)</span></div>
+    <div class="step"><b>POST /auth/otp/verify</b><span>Central <code>verify-otp</code> → our session</span></div>
+    <div class="step"><b>Tokens</b><span>JWT access + rotating refresh · Central tokens kept encrypted on the session</span></div>
+    <div class="step"><b>POST /auth/refresh</b><span>rotates ours, refreshes Central · reuse → revoke · Central ended → <code>SESSION_REVOKED</code></span></div>
+    <div class="step"><b>POST /auth/logout</b><span>ends ours and Central's</span></div>
+  </div>
+  <p class="muted"><code>AUTH_PROVIDER=central</code> in real use. <code>AUTH_PROVIDER=local</code> gives the built-in OTP (test code <code>123456</code>) for tests and demos. Deactivating a user revokes all sessions and push devices.</p>
+  <h3>Roles</h3>
+  <p>
+    <span class="pill">SUPER_ADMIN</span><span class="pill">ADMIN</span><span class="pill">PRINCIPAL</span><span class="pill">AO</span><span class="pill">TRANSPORT_INCHARGE</span>
+    <span class="pill">HOD</span><span class="pill">TEACHER</span><span class="pill">PARENT</span><span class="pill">DRIVER</span><span class="pill">ATTENDANT</span>
+  </p>
+  <ul class="list">
+    <li>Permissions and role mapping live in <code>modules/access/access.catalog.ts</code> (<code>PERMISSIONS</code>, <code>PERMISSION_CATALOG</code>, <code>ROLE_CATALOG</code>). Add one there, then <code>npm run seed</code>.</li>
+    <li>Admin routes use <code>@RequirePermissions(...)</code>; mobile routes use <code>@RequireRoles(...)</code>.</li>
+    <li>A person can't be teaching staff (TEACHER/HOD) and bus crew (DRIVER/ATTENDANT) at the same time (<code>roleConflict</code>).</li>
+    <li>Proxy assignment is AO or super admin only.</li>
+  </ul>
+</section>
+
+<section class="card" id="notify">
+  <h2><span class="num">8</span>Notifications</h2>
+<pre><code>notifications.dispatch({ template: 'STUDENT_ABSENT', audience: { user_ids: [41] }, data: { student: 'Arun' } })</code></pre>
+  <div class="flow">
+    <div class="step"><b>1 · In-app row</b><span>always; what the app lists</span></div>
+    <div class="step"><b>2 · Push (FCM)</b><span><code>PUSH_DRIVER</code>; to every registered device</span></div>
+    <div class="step"><b>3 · SMS</b><span>template says <code>always</code>, or <code>fallback</code> and push did not reach a phone</span></div>
+  </div>
+  <ul class="list">
+    <li>Every attempt is a row in <code>notifications</code> (the outbox). The rows of one message share a <code>batch_id</code>.</li>
+    <li>Templates (English + Tamil) are in <code>notification-templates.catalog.ts</code>, loaded by the seed.</li>
+    <li>SMS route by <code>SMS_DRIVER</code>: <code>log</code> (outbox only), <code>ping4sms</code> (direct, needs DLT ids) or <code>kafka</code> (central Notification Service, topic <code>NOTIFY_KAFKA_TOPIC</code>, <code>templateId = NOTIFY_TEMPLATE_PREFIX + code</code>).</li>
+    <li>Jobs run on the in-process queue (<code>QUEUE_DRIVER=memory</code>) with retries. Queued jobs are lost on restart; Redis comes later behind the same switch.</li>
+  </ul>
+</section>
+
+<section class="card" id="realtime">
+  <h2><span class="num">9</span>Realtime (socket.io)</h2>
+  <div class="grid g2">
+    <div class="box"><h4>/live · tracking</h4>
+      <p>Trips and buses. Clients join a trip room or a school fleet room.</p>
+      <p><span class="pill">trip.position</span><span class="pill">trip.event</span></p></div>
+    <div class="box"><h4>/comm · chat</h4>
+      <p>Parent ↔ teacher chat. Each user has a personal room.</p>
+      <p><span class="pill">chat.message</span><span class="pill">chat.read</span><span class="pill">chat.updated</span><span class="pill">chat.typing</span></p></div>
+  </div>
+  <p class="muted" style="margin-top:12px">Both namespaces authenticate with the same JWT at handshake. The REST endpoints stay the source of truth; sockets only push changes.</p>
+</section>
+
+<section class="card" id="jobs">
+  <h2><span class="num">10</span>Scheduled jobs</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Job</th><th>When</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>announcements-scheduled</code></td><td>every minute</td><td>Publishes scheduled announcements</td></tr>
+      <tr><td><code>chat-office-hours</code></td><td>every minute</td><td>Releases chat pushes held outside office hours</td></tr>
+      <tr><td><code>meeting-lifecycle</code></td><td>every minute</td><td>Starts and ends video meetings</td></tr>
+      <tr><td><code>fee-overdue</code></td><td>08:00 daily</td><td>Sends fee overdue reminders</td></tr>
+      <tr><td><code>fleet-expiry</code></td><td>07:00 daily</td><td>Vehicle document expiry alerts</td></tr>
+      <tr><td><code>cleanup</code></td><td>03:00 daily</td><td>Removes old OTPs and ended sessions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="card" id="integrations">
+  <h2><span class="num">11</span>Integrations</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Service</th><th>Direction</th><th>Code</th><th>Settings</th></tr></thead>
+    <tbody>
+      <tr><td>Central Auth Service</td><td>out</td><td><code>auth/central-auth.client.ts</code></td><td><code>AUTH_PROVIDER</code> <code>CENTRAL_AUTH_URL</code></td></tr>
+      <tr><td>Notification Service (Kafka)</td><td>out</td><td><code>sms/kafka-notify.service.ts</code></td><td><code>NOTIFY_KAFKA_*</code> <code>NOTIFY_TENANT_ID</code></td></tr>
+      <tr><td>Firebase Cloud Messaging</td><td>out</td><td><code>notifications</code></td><td><code>PUSH_DRIVER</code> <code>FIREBASE_CREDENTIALS_FILE</code></td></tr>
+      <tr><td>Agora video</td><td>out + webhook</td><td><code>meetings</code> · <code>integrations/agora</code></td><td><code>AGORA_*</code></td></tr>
+      <tr><td>Telematics service</td><td>out (read) + webhook</td><td><code>fleet/telematics.client.ts</code> · <code>integrations/telematics</code></td><td><code>TELEMATICS_*</code></td></tr>
+      <tr><td>Biometric devices</td><td>webhook in</td><td><code>integrations/biometric</code></td><td><code>BIOMETRIC_WEBHOOK_KEY</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="card" id="conventions">
+  <h2><span class="num">12</span>API conventions</h2>
+  <div class="grid g2">
+    <div class="box"><h4>Route families</h4>
+      <p><code>auth/*</code> <code>me/*</code> all apps · <code>admin/*</code> web · <code>mobile/parent|teacher|driver/*</code> Flutter · <code>admin/fleet/*</code> read-only bus status · <code>files/*</code> · <code>integrations/*</code> webhooks.</p></div>
+    <div class="box"><h4>Two Swagger docs, one API</h4>
+      <p><code>/api/docs/admin</code> (web team) and <code>/api/docs/mobile</code> (Flutter team), split by path in <code>swagger.ts</code>. Both include auth, me, files and health.</p></div>
+    <div class="box"><h4>Lists</h4>
+      <p>Extend <code>ListQueryDto</code> (page, limit, search, sort, order) and use <code>listQuery()</code>. Response is <code>{ items, total, page, limit, total_pages, has_next }</code>. Unknown sort → <code>INVALID_SORT</code>.</p></div>
+    <div class="box"><h4>Errors</h4>
+      <p><code>AppException.notFound('...', 'STUDENT_NOT_FOUND')</code>. Codes are SCREAMING_SNAKE_CASE and stable, because clients switch on them.</p></div>
+    <div class="box"><h4>Swagger on every endpoint</h4>
+      <p><code>@ApiTags</code> <code>@ApiBearerAuth</code> <code>@ApiOperation</code> <code>@ApiEnvelope(Dto)</code> <code>@ApiErrors(...)</code>, with response DTO classes that carry examples.</p></div>
+    <div class="box"><h4>Insight cards</h4>
+      <p>Pages with counts get a separate <code>GET .../insights</code> endpoint.</p></div>
+  </div>
+</section>
+
+<section class="card" id="config">
+  <h2><span class="num">13</span>Configuration and switches</h2>
+  <p>Every setting comes from <code>.env</code>, is typed in <code>configuration.ts</code> and validated in <code>env.validation.ts</code>, so a missing value stops the boot. New keys go into <code>.env.example</code> with a placeholder. <code>.env</code> is never committed.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Group</th><th>Keys</th></tr></thead>
+    <tbody>
+      <tr><td>App</td><td><code>NODE_ENV HOST PORT APP_TIMEZONE CORS_ORIGINS PUBLIC_BASE_URL</code></td></tr>
+      <tr><td>Database</td><td><code>DB_HOST DB_PORT DB_USER DB_PASSWORD DB_NAME DB_SSL DB_POOL_SIZE</code></td></tr>
+      <tr><td>Auth</td><td><code>JWT_ACCESS_SECRET JWT_ACCESS_TTL_SECONDS REFRESH_TTL_DAYS AUTH_PROVIDER CENTRAL_AUTH_URL AUTH_EMAIL_DOMAIN OTP_MODE</code></td></tr>
+      <tr><td>Messaging</td><td><code>SMS_DRIVER NOTIFY_KAFKA_* NOTIFY_TENANT_ID NOTIFY_TEMPLATE_PREFIX PUSH_DRIVER FIREBASE_CREDENTIALS_FILE</code></td></tr>
+      <tr><td>Files and security</td><td><code>STORAGE_DRIVER STORAGE_LOCAL_DIR FILE_MAX_MB FILE_SIGNING_SECRET QR_SIGNING_SECRET DATA_ENCRYPTION_KEY VIRUS_SCAN</code></td></tr>
+      <tr><td>Queue</td><td><code>QUEUE_DRIVER QUEUE_MAX_RETRIES</code></td></tr>
+      <tr><td>Integrations</td><td><code>TELEMATICS_* AGORA_* BIOMETRIC_WEBHOOK_KEY</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid g3">
+    <div class="box"><h4>Now</h4><p><code>STORAGE_DRIVER=local</code> · <code>QUEUE_DRIVER=memory</code> · <code>VIRUS_SCAN=off</code></p></div>
+    <div class="box"><h4>Later, same switches</h4><p>S3 · Redis · ClamAV. No hard dependency on them today.</p></div>
+    <div class="box"><h4>Never</h4><p>Hosts, keys, passwords or school names in code.</p></div>
+  </div>
+</section>
+
+<section class="card" id="db">
+  <h2><span class="num">14</span>Database, migrations and seeds</h2>
+  <p><code>synchronize</code> is off. The schema changes only through migrations in <code>apps/school-api/src/database/migrations</code>.</p>
+<pre><code>npm run migration:generate -- apps/school-api/src/database/migrations/Name   # review the SQL
+npm run migration:run
+npm run seed            # roles, permissions, templates (production-safe)
+npm run seed:demo       # local only: demo school and users
+npm run seed:super-admin -- --mobile 9xxxxxxxxx --name "Full Name"</code></pre>
+  <h3>Migration history</h3>
+  <p class="muted" style="font-size:13.5px">Init → Foundation → SchoolSetupStudents → StudentRecordsStaff → RemoveTelematics → AttendanceLeaveTimetable → StudentIdentificationMarks → SubstitutesPayrollTransport → CentralAuthLink → LiveTrips → StudentAchievements → ExamsMarks → Fees → CombineClass → SportsActivities → FleetBoardingAlerts → FleetMaintenanceFuel → VideoMeetings → MeetingLifecycle → DiaryAnnouncementsChat → AppBanners → AppBannerImageOptional → CentralSessionTokens</p>
+</section>
+
+<section class="card" id="tests">
+  <h2><span class="num">15</span>Testing and quality gates</h2>
+  <div class="grid g3">
+    <div class="box"><h4>Unit · <code>npm test</code></h4><p>46 spec files next to the code. No database needed. Pure <code>*.logic.ts</code> functions are covered first.</p></div>
+    <div class="box"><h4>E2E · <code>npm run test:e2e</code></h4><p>Smoke tests against a migrated database.</p></div>
+    <div class="box"><h4>Regression · web repo</h4><p><code>npm run test:regression</code> in <code>Telamatics_web</code>: API, browser and telematics suites.</p></div>
+  </div>
+  <div class="note">Before every commit: <code>npm run lint &amp;&amp; npm test &amp;&amp; npm run build</code> must pass. When a client-visible contract changes, update <code>docs/api-guide.md</code>, Swagger and the web app's <code>src/features/*/api.ts</code> types together.</div>
+</section>
+
+<section class="card" id="next">
+  <h2><span class="num">16</span>What's next</h2>
+  <ul class="list">
+    <li><b>Multi-tenancy</b> (one master DB + one DB per school group, workspace URLs, subscriptions, invoices): see <code>docs/multi-tenancy.md</code>.</li>
+    <li>Redis queue, S3 storage and ClamAV behind the existing switches.</li>
+    <li>Real SMS after DLT template registration; FCM and APNs keys from the Flutter team; Agora production keys.</li>
+  </ul>
+  <p class="muted">Related docs in this folder: <code>api-guide.md</code> (client contract), <code>multi-tenancy.md</code> (tenant build spec).</p>
+</section>
+
+<footer>Tamilzorous · School Management API · Backend architecture</footer>
+</div>
+<script>
+  (function () {
+    var root = document.documentElement;
+    var key = 'tz.docs.theme';
+    try { var saved = localStorage.getItem(key); if (saved) root.setAttribute('data-theme', saved); } catch (e) {}
+    document.getElementById('theme').addEventListener('click', function () {
+      var dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+      var next = dark ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(key, next); } catch (e) {}
+    });
+  })();
+</script>
+</body>
+</html>

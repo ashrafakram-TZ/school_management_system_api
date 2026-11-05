@@ -7,11 +7,25 @@ import { Exam } from './entities/exam.entity';
 import { ExamsController, StudentResultsController } from './exams.controller';
 import { ExamsService } from './exams.service';
 import { MobileParentExamsController, MobileTeacherExamsController } from './mobile-exams.controller';
+import {
+  MobileParentReportCardController,
+  SectionReportCardsController,
+  StudentReportCardController,
+} from './report-cards.controller';
+import { ReportCardsService } from './report-cards.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Exam, ExamSubject, ExamMark]), StaffModule],
-  controllers: [ExamsController, StudentResultsController, MobileTeacherExamsController, MobileParentExamsController],
-  providers: [ExamsService],
+  controllers: [
+    ExamsController,
+    StudentResultsController,
+    StudentReportCardController,
+    SectionReportCardsController,
+    MobileTeacherExamsController,
+    MobileParentExamsController,
+    MobileParentReportCardController,
+  ],
+  providers: [ExamsService, ReportCardsService],
   exports: [ExamsService],
 })
 export class ExamsModule {}

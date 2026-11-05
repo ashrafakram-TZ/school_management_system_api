@@ -28,6 +28,8 @@ The Admin web and the Flutter app (Staff, Parent and Driver roles) call the same
 Sign-in uses the central **Tamilzorous Auth Service** for the OTP (`AUTH_PROVIDER=central`). The app still calls only this API; nothing changes in the app:
 
 - `POST /auth/otp/request`: we check the number is an active user here, then the Auth Service sends the SMS (valid **15 minutes**, resend after 30 seconds). A user the Auth Service does not know yet is registered there automatically on this first request (name, mobile, email; staff and parents without an email get `firstname.lastname.1234@school.tamilzorous.com`).
+- `POST /auth/otp/resend`: the **Resend OTP** button. Same body and checks as `otp/request`, calls the Auth Service `resend-otp`. Use it once `resend_in` has passed; too early gives `429 OTP_RESEND_TOO_SOON`.
+- **Auto-read OTP on Android:** send `"app_hash": "Xy12AbCd3Ef"` (the 11-character SMS Retriever hash of the app build) in `otp/request` and `otp/resend`. The Auth Service adds it to the SMS so the app fills the code itself. Leave it out on iOS and the web. A wrong format gives `400` on `app_hash`. The old name `app_signature` still works.
 - `POST /auth/otp/verify`: the Auth Service checks the code; this API then issues the school session (`access_token`, `refresh_token`) with school and roles.
 - `POST /auth/refresh` also renews the Auth Service sign-in (its refresh token is kept encrypted on our session). If the Auth Service says the sign-in has ended, the answer is `401 SESSION_REVOKED` and the user signs in again; if it cannot be reached, `503 AUTH_SERVICE_UNAVAILABLE` and the app can retry. `POST /auth/logout` signs out here and at the Auth Service. Apps keep using only this API's tokens.
 - Deactivating a user here blocks OTP and ends every session at once.
@@ -62,7 +64,7 @@ One person, one sign-in. A number that is both a parent and a teacher signs in o
 - Switching needs no new OTP and no new token: the same `access_token` works for `/mobile/parent/*` and `/mobile/teacher/*`.
 
 
-1. `POST /auth/otp/request` with `{ "mobile": "9876543210" }`. Returns `expires_in` and `resend_in` (seconds) for the countdown.
+1. `POST /auth/otp/request` with `{ "mobile": "9876543210", "app": "mobile", "app_hash": "Xy12AbCd3Ef" }` (`app_hash` on Android only). Returns `expires_in` and `resend_in` (seconds) for the countdown; the Resend button calls `POST /auth/otp/resend` with the same body.
 2. `POST /auth/otp/verify` with `{ "mobile": "...", "otp": "123456", "client": { "app": "parent", "platform": "android", "device_name": "Pixel 7", "app_version": "1.0.0", "fcm_token": "..." } }`.
 3. Store `access_token` and `refresh_token` securely. Send `Authorization: Bearer <access_token>` on every call.
 4. Read `user.apps`. If it has more than one value (for example `["staff", "parent"]`), show a role picker. Otherwise open that app directly.
@@ -485,6 +487,29 @@ Grades (CBSE-like, on the percentage): A1 91+, A2 81+, B1 71+, B2 61+, C1 51+, C
 ### Admin web
 
 `/admin/exams` (list, create with `class_ids`, `PATCH`, `DELETE` draft only), `/admin/exams/{id}/subjects` (`GET`, `PUT` the full list of papers), `/admin/exams/{id}/sections/{sectionId}/marks?subject_id=` (`GET`, `PUT`), `/admin/exams/{id}/sections/{sectionId}/results`, `/admin/exams/{id}/classes/{classId}/toppers?limit=3`, `/admin/exams/{id}/toppers` (top 3 of every class), `POST /admin/exams/{id}/publish` and `/admin/students/{id}/results`. Permissions `exams.view` (Principal, AO) and `exams.manage` (AO).
+
+### Report card
+
+One marksheet for a student built from the **published** exams of an academic year.
+
+| Call | Who | Returns |
+|---|---|---|
+| `GET /admin/students/{id}/report-card` | `exams.view` | Report card JSON |
+| `GET /admin/students/{id}/report-card/pdf` | `exams.view` | A4 PDF (inline, for print) |
+| `GET /admin/report-cards/sections/{sectionId}/pdf` | `exams.view` | One PDF with a page per student, roll-number order; students without results in the scope are skipped |
+| `GET /mobile/parent/children/{id}/report-card` | Parent | Report card JSON |
+| `GET /mobile/parent/children/{id}/report-card/pdf` | Parent | A4 PDF (download) |
+
+Query (all optional): `academic_year_id` (default: the current year, else the latest enrollment), then **one** scope: nothing = the whole year with every term side by side, `term_id` = only that term, `exam_id` = only that exam (wins over `term_id`). The section PDF takes `term_id` / `exam_id` only (the section fixes the year).
+
+- `terms[]` groups the columns: `{ term_id, name, exam_ids }`. Exams without a term come last under "Other exams".
+- `columns[]`: one per exam in order, with `total`, `max_total`, `percent`, `grade`, `result`, `section_rank`/`section_size`, `class_rank`/`class_size`, and `common_max` (the max marks when every paper has the same, for the header "Quarterly exam (100)").
+- `subjects[]`: languages first, then theory, practical and activity, each by name. `cells[]` has one entry per column (`null` when the subject was not in that exam; `passed: null` when marks are not entered). The row's `total`, `max_total`, `percent`, `grade` add up every exam; `passed` is false when the total is below the sum of the pass marks.
+- `overall`: totals of the complete exams. `result` is `fail` only when a subject's combined total is below its combined pass marks, so one weak unit test does not fail the year.
+- `attendance`: daily attendance (period 0) in `scope.from`–`scope.to` (term or year dates, never after today). `late` counts as present, `half_day` as half.
+- `remarks` (from the overall percentage), `grade_scale`, `options` (`academic_years`, `terms`, `exams` for the pickers) and `pdf_path`.
+
+Errors: `404 STUDENT_NOT_FOUND`, `ENROLLMENT_NOT_FOUND`, `TERM_NOT_FOUND`, `EXAM_NOT_FOUND`, `SECTION_NOT_FOUND`, `CHILD_NOT_FOUND`; the PDFs give `404 NO_PUBLISHED_RESULTS` when there is nothing to print.
 
 ## App banners (image banners on the home screen)
 

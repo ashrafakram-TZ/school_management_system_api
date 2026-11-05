@@ -87,6 +87,16 @@ export function mapCentralError(status: number, message: string): AppException {
   );
 }
 
+export type OtpPath = 'send-otp' | 'resend-otp';
+
+export function otpPayload(mobile: string, appHash?: string | null): { mobile: string; app_hash?: string } {
+  return appHash ? { mobile, app_hash: appHash } : { mobile };
+}
+
+export function appHashRejected(status: number, body: CentralEnvelope<unknown> | null): boolean {
+  return status === 400 && centralMessage(body).toLowerCase().includes('app_hash should not exist');
+}
+
 export class CentralUserMissing extends Error {}
 
 export class CentralSessionEnded extends Error {}
@@ -101,8 +111,20 @@ export class CentralAuthClient {
     return this.config.provider === 'central';
   }
 
-  async sendOtp(mobile: string): Promise<void> {
-    const { status, body } = await this.post('send-otp', { mobile });
+  sendOtp(mobile: string, appHash?: string | null): Promise<void> {
+    return this.otp('send-otp', mobile, appHash);
+  }
+
+  resendOtp(mobile: string, appHash?: string | null): Promise<void> {
+    return this.otp('resend-otp', mobile, appHash);
+  }
+
+  private async otp(path: OtpPath, mobile: string, appHash?: string | null): Promise<void> {
+    let { status, body } = await this.post(path, otpPayload(mobile, appHash));
+    if (appHash && appHashRejected(status, body)) {
+      this.logger.warn(`${path} does not accept app_hash yet; sent without it`);
+      ({ status, body } = await this.post(path, otpPayload(mobile)));
+    }
     if (status >= 200 && status < 300) return;
     const message = centralMessage(body);
     if (message.toLowerCase().includes('user not found')) throw new CentralUserMissing(mobile);

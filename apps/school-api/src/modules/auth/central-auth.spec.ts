@@ -1,5 +1,13 @@
 import { AppException } from '@app/common';
-import { authEmail, centralMessage, centralRole, mapCentralError } from './central-auth.client';
+import {
+  appHashRejected,
+  authEmail,
+  CentralAuthClient,
+  centralMessage,
+  centralRole,
+  mapCentralError,
+  otpPayload,
+} from './central-auth.client';
 
 const codeOf = (error: AppException) => (error.getResponse() as { code: string }).code;
 
@@ -53,5 +61,62 @@ describe('mapCentralError', () => {
       'email must be an email; name should not be empty',
     );
     expect(centralMessage(null)).toBe('');
+  });
+});
+
+describe('OTP with app hash', () => {
+  const config = { provider: 'central', url: 'http://auth.test/api/auth', timeoutMs: 1000, emailDomain: 'x.com' };
+  const client = new CentralAuthClient(config as never);
+  const reply = (status: number, body: object) =>
+    ({ status, json: () => Promise.resolve(body) }) as unknown as Response;
+  const sent = (call: unknown[]) => ({
+    url: call[0] as string,
+    body: JSON.parse((call[1] as { body: string }).body) as object,
+  });
+  let fetchMock: jest.SpyInstance;
+
+  beforeEach(() => {
+    fetchMock = jest.spyOn(global, 'fetch');
+  });
+  afterEach(() => fetchMock.mockRestore());
+
+  it('adds app_hash only when the app sent one', () => {
+    expect(otpPayload('9876543210', 'Xy12AbCd3Ef')).toEqual({ mobile: '9876543210', app_hash: 'Xy12AbCd3Ef' });
+    expect(otpPayload('9876543210')).toEqual({ mobile: '9876543210' });
+    expect(otpPayload('9876543210', null)).toEqual({ mobile: '9876543210' });
+  });
+
+  it('spots an Auth Service that does not know app_hash yet', () => {
+    expect(appHashRejected(400, { message: ['property app_hash should not exist'] })).toBe(true);
+    expect(appHashRejected(400, { message: 'Invalid OTP' })).toBe(false);
+    expect(appHashRejected(200, { message: 'OTP sent successfully' })).toBe(false);
+  });
+
+  it('sends the hash to send-otp and resend-otp', async () => {
+    fetchMock.mockResolvedValue(reply(200, { success: true, message: 'OTP sent successfully' }));
+    await client.sendOtp('9876543210', 'Xy12AbCd3Ef');
+    await client.resendOtp('9876543210', 'Xy12AbCd3Ef');
+    expect(fetchMock.mock.calls.map(sent)).toEqual([
+      { url: 'http://auth.test/api/auth/send-otp', body: { mobile: '9876543210', app_hash: 'Xy12AbCd3Ef' } },
+      { url: 'http://auth.test/api/auth/resend-otp', body: { mobile: '9876543210', app_hash: 'Xy12AbCd3Ef' } },
+    ]);
+  });
+
+  it('sends again without the hash when the Auth Service refuses it', async () => {
+    fetchMock
+      .mockResolvedValueOnce(reply(400, { message: ['property app_hash should not exist'] }))
+      .mockResolvedValueOnce(reply(200, { success: true }));
+    await client.resendOtp('9876543210', 'Xy12AbCd3Ef');
+    expect(fetchMock.mock.calls.map(sent).map((call) => call.body)).toEqual([
+      { mobile: '9876543210', app_hash: 'Xy12AbCd3Ef' },
+      { mobile: '9876543210' },
+    ]);
+  });
+
+  it('keeps the resend wait message as OTP_RESEND_TOO_SOON', async () => {
+    fetchMock.mockResolvedValue(reply(400, { message: 'Please wait 25 seconds before requesting a new OTP' }));
+    await expect(client.resendOtp('9876543210')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'OTP_RESEND_TOO_SOON' }) as unknown,
+    });
   });
 });
