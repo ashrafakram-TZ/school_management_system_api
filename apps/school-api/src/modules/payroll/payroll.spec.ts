@@ -1,6 +1,6 @@
 import { computePay, monthLabel, monthlyGross, rupees, StructureInput } from './payroll.calc';
 import { lopDays } from './payroll.service';
-import { amountInWords } from './payslip.pdf';
+import { amountInWords, payslipPdf } from './payslip.pdf';
 
 const structure = (overrides: Partial<StructureInput> = {}): StructureInput => ({
   basic: 30000,
@@ -123,5 +123,44 @@ describe('money and words', () => {
 
   it('names the month', () => {
     expect(monthLabel('2026-10')).toBe('October 2026');
+  });
+});
+
+describe('payslipPdf', () => {
+  it('renders a single-page payslip PDF matching invoice design', async () => {
+    const pdf = await payslipPdf({
+      school_name: 'Tamilzorous Model School',
+      school_code: 'TZMS',
+      school_address: '123, Anna Nagar, Chennai',
+      school_phone: '044 26201234',
+      school_email: 'office@tamilzorous.edu',
+      school_logo: null,
+      month_label: 'October 2026',
+      employee_no: 'EMP-0012',
+      name: 'Rajesh Sharma',
+      designation: 'Senior Teacher',
+      department: 'Science',
+      bank: 'State Bank of India ····4321',
+      pan_last4: '9876',
+      working_days: 26,
+      lop_days: 1,
+      paid_days: 25,
+      earnings: [
+        ['Basic', 25000],
+        ['House rent allowance', 8000],
+      ],
+      deductions: [
+        ['Provident fund', 1800],
+        ['Professional tax', 200],
+      ],
+      gross: 33000,
+      total_deductions: 2000,
+      net: 31000,
+      draft: false,
+    });
+    expect(Buffer.isBuffer(pdf)).toBe(true);
+    expect(pdf.length).toBeGreaterThan(1000);
+    const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;
+    expect(pages).toBe(1);
   });
 });
