@@ -178,6 +178,8 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 | `NO_STUDENTS` | 409 | Diary: the class or section has no students yet |
 | `ANNOUNCEMENT_NOT_FOUND`, `ANNOUNCEMENT_NOT_EDITABLE`, `ANNOUNCEMENT_NOT_PUBLISHED` | 404/409 | Announcement not found, already sent, or not published |
 | `THREAD_NOT_FOUND`, `MESSAGE_NOT_FOUND` | 404 | Not your conversation or message |
+| `NOTE_NOT_FOUND` | 404 | Meeting note is not yours (or was deleted) |
+| `MEETING_CHAT_CLOSED`, `MEETING_NOT_OVER` | 409 | Meeting chat is read-only after the meeting; the recap is ready only after it ends |
 | `NOT_A_TEACHER`, `STAFF_NOT_FOUND` | 400/404 | Teacher app preview: the staff member is not teaching staff, or not in this school |
 | `OWN_MESSAGE`, `ALREADY_FLAGGED`, `ALREADY_HIDDEN`, `NOT_HIDDEN`, `NOT_FLAGGED` | 400/409 | Chat reporting and hiding rules |
 | `PAYMENT_EXCEEDS_BALANCE`, `DISCOUNT_TOO_HIGH`, `NO_PLAN_FOR_INSTALLMENT` | 400 | Fees: the amount is more than the invoice balance, the discount goes below what is paid, or no plan has that installment |
@@ -600,6 +602,8 @@ Connect once after sign-in: `io('<server>/comm', { auth: { token: access_token }
 | `meeting.status` | `{ meeting_id, status, ends_at, extended_minutes, ended_at, end_reason, by }` on booking, start, extension, over time, end and cancel |
 | `meeting.reminder` | `{ meeting_id, kind: "start" }` 10 minutes before; `{ kind: "ending", minutes_left: 5, ends_at }` 5 minutes before the end: show it inside the call |
 | `meeting.participant` | `{ meeting_id, user_id, party, action: "joined" or "left" }` |
+| `meeting.message` | A message in the meeting chat (same shape as `POST .../messages` returns; `mine` is `false` here, compare `sender.id`) |
+| `meeting.note` | Parent only: `{ meeting_id, note_id }` when the teacher shares a note |
 
 ## Video meetings (Agora)
 
@@ -637,6 +641,22 @@ Every meeting has `from` (who booked), `to`, `teacher`, `parent`, `student`, `ho
 
 `GET /mobile/parent/meetings`, `GET /mobile/parent/children/{id}/teachers`, `POST /mobile/parent/children/{id}/meetings` `{ "teacher_user_id": 9, "title": "...", "scheduled_at": "...", "duration_minutes": 15 }`, `GET /mobile/parent/meetings/{id}`, `join` (role `participant`), `token`, `leave` and `cancel`. Parents cannot extend or end.
 
+### Notes, meeting chat and recap
+
+Both apps use the same paths under `/mobile/teacher/meetings/{id}` and `/mobile/parent/meetings/{id}`. Everything is current academic year only, like the meetings themselves.
+
+| Call | What it does |
+|---|---|
+| `GET .../notes` | My notes plus the teacher's shared notes, oldest first. Each note has `author`, `author_party`, `body`, `shared`, `shared_at` and `mine` |
+| `POST .../notes` | Teacher: `{ "body": "...", "shared": true }`; `shared: true` shows it to the parent and sends `MEETING_NOTES_SHARED`. Parent: `{ "body": "..." }`, always private |
+| `PATCH .../notes/{noteId}` | Edit my note. Teacher can also send `shared` (sharing tells the parent once; `false` hides it again) |
+| `DELETE .../notes/{noteId}` | Delete my note |
+| `GET .../messages?before_id=&limit=50` | Meeting chat, newest first, `{ items, has_more }` |
+| `POST .../messages` | `{ "body": "...", "file_id": null }` (file from `POST /files`). Open from 10 minutes before the start until the meeting ends; the other person gets `meeting.message` on `/comm` |
+| `GET .../recap` | After a `completed` or `missed` meeting: `{ meeting, call_minutes, attendance, notes, message_count, messages }`. `attendance` has the teacher then the parent with `attended`, `minutes`, `sessions` (reconnects), `first_joined_at`, `last_left_at`, `platforms`; overlapping app and Agora records count once. `messages` is the whole chat, oldest first (up to 500) |
+
+Notes are allowed before, during and after a meeting, but not on a cancelled one (`409 MEETING_CANCELLED`). Someone else's note returns `404 NOTE_NOT_FOUND`. The chat answers `409 MEETING_NOT_OPEN` before the join window, `409 MEETING_CHAT_CLOSED` once the meeting has ended (history stays readable) and `409 MEETING_CANCELLED`. The recap answers `409 MEETING_NOT_OVER` while the meeting is still scheduled or running. The video itself is not recorded.
+
 ### Admin web and server
 
 `GET /admin/meetings` (filters `status`, `when`, `scheduled_by`, `teacher_user_id`, `guardian_id`, `student_id`, `date_from`, `date_to`), `/insights` and `/{id}` with the call log. Permission `meetings.view`.
@@ -645,7 +665,7 @@ Server settings: `AGORA_APP_ID` and `AGORA_APP_CERTIFICATE` (tokens), `AGORA_TOK
 
 ## Digital diary
 
-Teachers post **homework**, **remarks**, **feedback** or **notes** to a whole class (only if they teach every section), a section, or chosen students (up to 60), with up to 5 files and, for homework, a due date. The school chooses in School setup → Diary review: `remarks` (default: remarks and feedback wait for the office; homework and notes go out at once) or `all` (every post waits). Published posts reach parents with a `DIARY_POSTED` push.
+Teachers post **homework**, **remarks**, **feedback** or **notes** to a whole class (only if they teach every section), a section, or chosen students (up to 60), with up to 5 files and, for homework, a due date. The school chooses in School setup → Diary and chat → Diary review (option A or B): `all` (option A: every post waits) or `remarks` (option B, default: remarks and feedback wait for the office; homework and notes go out at once). Published posts reach parents with a `DIARY_POSTED` push.
 
 | Call | Screen |
 |---|---|

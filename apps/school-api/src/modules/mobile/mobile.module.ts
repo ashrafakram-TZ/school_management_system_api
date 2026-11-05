@@ -20,6 +20,10 @@ import { TrackingModule } from '../tracking/tracking.module';
 import { TransportModule } from '../transport/transport.module';
 import { MobileAccessService } from './mobile-access.service';
 import { MobileParentMeetingsController, MobileTeacherMeetingsController } from './mobile-meetings.controller';
+import {
+  MobileParentMeetingRecordsController,
+  MobileTeacherMeetingRecordsController,
+} from './mobile-meeting-records.controller';
 import { MobileParentDiaryController, MobileTeacherDiaryController } from './mobile-diary.controller';
 import { MobileParentChatController, MobileTeacherChatController } from './mobile-chat.controller';
 import { MobileParentAttendanceController, MobileTeacherAttendanceController } from './mobile-attendance.controller';
@@ -69,6 +73,8 @@ import { TeacherPreviewService } from './teacher-preview.service';
     MobileParentBannerController,
     MobileTeacherMeetingsController,
     MobileParentMeetingsController,
+    MobileTeacherMeetingRecordsController,
+    MobileParentMeetingRecordsController,
     MobileTeacherDiaryController,
     MobileParentDiaryController,
     MobileTeacherChatController,
