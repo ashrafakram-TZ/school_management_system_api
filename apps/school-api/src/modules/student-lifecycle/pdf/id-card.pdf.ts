@@ -120,10 +120,13 @@ function drawCardBackground(doc: Pdf, x: number, y: number, w: number, h: number
   doc.restore();
 }
 
-function drawSchoolLogoEmblem(doc: Pdf, cx: number, cy: number, radius: number, code: string): void {
+function drawSchoolLogoEmblem(doc: Pdf, cx: number, cy: number, radius: number): void {
   doc.save();
   doc.circle(cx, cy, radius).lineWidth(1.2).strokeColor(THEME.orange).fillColor(THEME.white).fillAndStroke();
-  doc.circle(cx, cy, radius - 2).lineWidth(0.5).strokeColor(THEME.orange);
+  doc
+    .circle(cx, cy, radius - 2)
+    .lineWidth(0.5)
+    .strokeColor(THEME.orange);
 
   const bx = cx;
   const by = cy;
@@ -169,7 +172,7 @@ export function drawIdCardFront(doc: Pdf, x: number, y: number, card: IdCardData
     doc.image(card.school_logo, logoCx - 10, logoCy - 10, { fit: [20, 20], align: 'center', valign: 'center' });
     doc.restore();
   } else {
-    drawSchoolLogoEmblem(doc, logoCx, logoCy, logoRadius, card.school_code);
+    drawSchoolLogoEmblem(doc, logoCx, logoCy, logoRadius);
   }
 
   // 2. School Name on RIGHT of Logo
@@ -265,7 +268,11 @@ export function drawIdCardFront(doc: Pdf, x: number, y: number, card: IdCardData
   const sigX = x + w - sigW - 14;
   const sigY = y + h - 18;
 
-  doc.moveTo(sigX, sigY).lineTo(sigX + sigW, sigY).lineWidth(0.8).stroke(THEME.orange);
+  doc
+    .moveTo(sigX, sigY)
+    .lineTo(sigX + sigW, sigY)
+    .lineWidth(0.8)
+    .stroke(THEME.orange);
   doc
     .font('Helvetica')
     .fontSize(4.6)
@@ -287,7 +294,11 @@ export function drawIdCardBack(doc: Pdf, x: number, y: number, card: IdCardData)
   const topLineX = x + (w - topLineW) / 2;
   const topLineY = y + 22;
 
-  doc.moveTo(topLineX, topLineY).lineTo(topLineX + topLineW, topLineY).lineWidth(1.2).stroke(THEME.orange);
+  doc
+    .moveTo(topLineX, topLineY)
+    .lineTo(topLineX + topLineW, topLineY)
+    .lineWidth(1.2)
+    .stroke(THEME.orange);
 
   doc
     .font('Helvetica-Bold')
@@ -307,7 +318,10 @@ export function drawIdCardBack(doc: Pdf, x: number, y: number, card: IdCardData)
   const qrY = topLineY + 27;
 
   // Outer border box around QR
-  doc.rect(qrX - 3, qrY - 3, qrSize + 6, qrSize + 6).lineWidth(0.6).stroke(THEME.border);
+  doc
+    .rect(qrX - 3, qrY - 3, qrSize + 6, qrSize + 6)
+    .lineWidth(0.6)
+    .stroke(THEME.border);
   doc.image(card.qr, qrX, qrY, { width: qrSize, height: qrSize });
 
   // 3. School Address Heading

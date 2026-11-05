@@ -471,8 +471,7 @@ export class StudentLifecycleService {
         school_code: school.code,
         school_city: school.city,
         school_phone: school.phone,
-        school_address:
-          [school.address, school.city, school.state, school.pincode].filter(Boolean).join(', ') || null,
+        school_address: [school.address, school.city, school.state, school.pincode].filter(Boolean).join(', ') || null,
         school_email: school.email,
         school_logo: logo,
         academic_year: year?.name ?? null,
