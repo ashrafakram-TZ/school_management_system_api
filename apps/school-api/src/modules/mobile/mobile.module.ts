@@ -7,6 +7,7 @@ import { FeesModule } from '../fees/fees.module';
 import { MeetingsModule } from '../meetings/meetings.module';
 import { DiaryModule } from '../diary/diary.module';
 import { ChatModule } from '../chat/chat.module';
+import { AnnouncementsModule } from '../announcements/announcements.module';
 import { StaffModule } from '../staff/staff.module';
 import { StaffAttendanceModule } from '../staff-attendance/staff-attendance.module';
 import { StaffLeaveModule } from '../staff-leave/staff-leave.module';
@@ -33,6 +34,8 @@ import { ParentPreviewController } from './parent-preview.controller';
 import { ParentPreviewService } from './parent-preview.service';
 import { TeacherAppService } from './teacher-app.service';
 import { TeacherInsightsService } from './teacher-insights.service';
+import { TeacherPreviewController } from './teacher-preview.controller';
+import { TeacherPreviewService } from './teacher-preview.service';
 
 @Module({
   imports: [
@@ -54,6 +57,7 @@ import { TeacherInsightsService } from './teacher-insights.service';
     MeetingsModule,
     DiaryModule,
     ChatModule,
+    AnnouncementsModule,
   ],
   controllers: [
     MobileParentChildController,
@@ -70,8 +74,16 @@ import { TeacherInsightsService } from './teacher-insights.service';
     MobileTeacherChatController,
     MobileParentChatController,
     ParentPreviewController,
+    TeacherPreviewController,
   ],
-  providers: [MobileAccessService, TeacherAppService, TeacherInsightsService, BannerService, ParentPreviewService],
+  providers: [
+    MobileAccessService,
+    TeacherAppService,
+    TeacherInsightsService,
+    BannerService,
+    ParentPreviewService,
+    TeacherPreviewService,
+  ],
   exports: [MobileAccessService],
 })
 export class MobileModule {}

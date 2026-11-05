@@ -109,6 +109,22 @@ export class ChatService {
     return { items: await this.presentMessages(rows.slice(0, limit)), has_more: rows.length > limit };
   }
 
+  async previewHistory(
+    viewer: AuthUser,
+    as: AuthUser,
+    party: ChatParty,
+    id: number,
+    query: MessagesQueryDto,
+  ): Promise<MessagesPageDto> {
+    await this.log(await this.findForParty(as, party, id), viewer.id, 'viewed_thread');
+    return this.history(as, party, id, query);
+  }
+
+  async unreadTotal(actor: AuthUser, party: ChatParty): Promise<number> {
+    const threads = await this.myThreads(actor, party, { page: 1, limit: 100 });
+    return threads.items.reduce((sum, thread) => sum + thread.unread, 0);
+  }
+
   async send(actor: AuthUser, party: ChatParty, id: number, dto: SendMessageDto): Promise<ChatMessageDto> {
     const thread = await this.findForParty(actor, party, id);
     if (!dto.body && !dto.file_id) {

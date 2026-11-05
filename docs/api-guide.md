@@ -176,6 +176,7 @@ Show `message` to the user. Use `error` to decide what to do. Use `errors[].fiel
 | `NO_STUDENTS` | 409 | Diary: the class or section has no students yet |
 | `ANNOUNCEMENT_NOT_FOUND`, `ANNOUNCEMENT_NOT_EDITABLE`, `ANNOUNCEMENT_NOT_PUBLISHED` | 404/409 | Announcement not found, already sent, or not published |
 | `THREAD_NOT_FOUND`, `MESSAGE_NOT_FOUND` | 404 | Not your conversation or message |
+| `NOT_A_TEACHER`, `STAFF_NOT_FOUND` | 400/404 | Teacher app preview: the staff member is not teaching staff, or not in this school |
 | `OWN_MESSAGE`, `ALREADY_FLAGGED`, `ALREADY_HIDDEN`, `NOT_HIDDEN`, `NOT_FLAGGED` | 400/409 | Chat reporting and hiding rules |
 | `PAYMENT_EXCEEDS_BALANCE`, `DISCOUNT_TOO_HIGH`, `NO_PLAN_FOR_INSTALLMENT` | 400 | Fees: the amount is more than the invoice balance, the discount goes below what is paid, or no plan has that installment |
 | `INVOICE_PAID`, `INVOICE_CANCELLED`, `INVOICE_HAS_PAYMENTS` | 409 | Fees: nothing left to pay, the invoice is cancelled, or it has payments and cannot be cancelled |
@@ -311,6 +312,26 @@ The admin web shows the parent app for any student in a phone frame. It never si
 | `GET /admin/students/{id}/parent-view/bus` | `GET /mobile/parent/children/{id}/bus` |
 | `GET /admin/students/{id}/parent-view/achievements` | `GET /mobile/parent/children/{id}/achievements` |
 | `GET /admin/students/{id}/parent-view/notifications?page=1&limit=10` | The primary parent's `GET /me/notifications` |
+| `GET /admin/students/{id}/parent-view/diary?type=` | `GET /mobile/parent/children/{id}/diary` (also needs `diary.view`) |
+| `GET /admin/students/{id}/parent-view/meetings?scope=upcoming\|past\|all` | The primary parent's `GET /mobile/parent/meetings?student_id={id}` (also needs `meetings.view`) |
+| `GET /admin/students/{id}/parent-view/chat` | The primary parent's threads about this child (also needs `chat.audit`) |
+| `GET /admin/students/{id}/parent-view/chat/{threadId}/messages?before_id=&limit=` | Messages as the parent sees them. Each call writes a `viewed_thread` row to the chat access log under the admin |
+| `GET /admin/students/{id}/parent-view/announcements?unread=` | The primary parent's `GET /me/announcements` (also needs `announcements.view`) |
+
+Without a parent login, meetings, chat and announcements return an empty page and a thread returns `404 THREAD_NOT_FOUND`. Everything is the current academic year only.
+
+### Teacher app preview (admin web)
+
+The same idea for a teacher, by **staff id** (`staff.view`). Non-teaching staff return `400 NOT_A_TEACHER`, an unknown id `404 STAFF_NOT_FOUND`.
+
+| Call | Same data as |
+|---|---|
+| `GET /admin/staff/{id}/teacher-view` | `{ teacher, today, classes, counts }`: `today` is `GET /mobile/teacher/timetable/today`, `classes` is `GET /mobile/teacher/classes`, `counts` has `diary_pending`, `meetings_upcoming`, `chat_unread`, `announcements_unread`. `teacher.can_sign_in` is `false` when the login is switched off |
+| `GET /admin/staff/{id}/teacher-view/diary?status=&type=&section_id=` | `GET /mobile/teacher/diary` (also needs `diary.view`) |
+| `GET /admin/staff/{id}/teacher-view/meetings?scope=` | `GET /mobile/teacher/meetings` (also needs `meetings.view`) |
+| `GET /admin/staff/{id}/teacher-view/chat?student_id=` | `GET /mobile/teacher/chat/threads` (also needs `chat.audit`) |
+| `GET /admin/staff/{id}/teacher-view/chat/{threadId}/messages` | Messages as the teacher sees them; logged as `viewed_thread` |
+| `GET /admin/staff/{id}/teacher-view/announcements?unread=` | The teacher's `GET /me/announcements` (also needs `announcements.view`) |
 
 ## Staff app: teachers
 
