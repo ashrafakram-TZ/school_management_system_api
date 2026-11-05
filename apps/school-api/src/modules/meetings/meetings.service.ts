@@ -659,7 +659,7 @@ export class MeetingsService {
     return onlyCurrentYear(qb);
   }
 
-  private async findForParty(actor: AuthUser, party: MeetingParty, id: number): Promise<Meeting> {
+  async findForParty(actor: AuthUser, party: MeetingParty, id: number): Promise<Meeting> {
     const meeting = await this.partyQuery(actor, party).andWhere('m.id = :id', { id }).getOne();
     if (!meeting) throw AppException.notFound('Meeting not found', 'MEETING_NOT_FOUND');
     return meeting;

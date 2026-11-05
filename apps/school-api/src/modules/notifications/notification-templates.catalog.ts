@@ -20,6 +20,7 @@ export const TEMPLATES = {
   MEETING_SCHEDULED: 'MEETING_SCHEDULED',
   MEETING_CANCELLED: 'MEETING_CANCELLED',
   MEETING_ENDING: 'MEETING_ENDING',
+  MEETING_NOTES_SHARED: 'MEETING_NOTES_SHARED',
   DIARY_REJECTED: 'DIARY_REJECTED',
   ANNOUNCEMENT: 'ANNOUNCEMENT',
   ANNOUNCEMENT_URGENT: 'ANNOUNCEMENT_URGENT',
@@ -395,6 +396,25 @@ export const TEMPLATE_CATALOG: TemplateDefinition[] = [
       ta: {
         title: 'கூட்டம் ரத்து செய்யப்பட்டது',
         body: '{{time}} அன்று {{student}} குறித்த கூட்டத்தை {{by}} ரத்து செய்தார்.{{reason}}',
+        sms_body: null,
+      },
+    },
+  },
+  {
+    code: TEMPLATES.MEETING_NOTES_SHARED,
+    category: 'meeting',
+    push: true,
+    sms: 'never',
+    critical: false,
+    text: {
+      en: {
+        title: 'Notes from your meeting about {{student}}',
+        body: '{{host}} shared notes from the meeting "{{title}}". Open the meeting to read them.',
+        sms_body: null,
+      },
+      ta: {
+        title: '{{student}} குறித்த கூட்டக் குறிப்புகள்',
+        body: '"{{title}}" கூட்டத்தின் குறிப்புகளை {{host}} பகிர்ந்துள்ளார். படிக்க கூட்டத்தைத் திறக்கவும்.',
         sms_body: null,
       },
     },
