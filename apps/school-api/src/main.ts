@@ -42,6 +42,11 @@ async function bootstrap(): Promise<void> {
     logger.log(
       `Swagger: admin http://localhost:${appCfg.port}/api/docs/admin · mobile http://localhost:${appCfg.port}/api/docs/mobile`,
     );
+  if (process.env.OTP_TEST === 'true') {
+    logger.warn(
+      `OTP_TEST=true: no SMS is sent and every user signs in with OTP ${process.env.OTP_TEST_CODE ?? '123456'}`,
+    );
+  }
 }
 
 void bootstrap();

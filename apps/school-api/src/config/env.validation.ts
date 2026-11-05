@@ -165,6 +165,9 @@ export class EnvironmentVariables {
   @IsIn(['test', 'sms'])
   OTP_MODE: string = 'test';
 
+  @IsIn(['true', 'false'], { message: 'OTP_TEST must be true or false' })
+  OTP_TEST: string = 'false';
+
   @IsIn(['local', 'central'], { message: 'AUTH_PROVIDER must be local or central' })
   AUTH_PROVIDER: string = 'local';
 
@@ -348,6 +351,9 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
   const env = plainToInstance(EnvironmentVariables, config, { enableImplicitConversion: true });
   if (env.NODE_ENV === 'production' && env.OTP_MODE === 'test') {
     throw new Error('Invalid env OTP_MODE: test mode is not allowed in production');
+  }
+  if (env.NODE_ENV === 'production' && String(env.OTP_TEST) === 'true') {
+    throw new Error('Invalid env OTP_TEST: the fixed test OTP is not allowed in production');
   }
   const [error] = validateSync(env);
   if (error) {

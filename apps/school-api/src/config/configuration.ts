@@ -36,6 +36,7 @@ export const authConfig = registerAs('auth', () => ({
 
 export const centralAuthConfig = registerAs('centralAuth', () => ({
   provider: (process.env.AUTH_PROVIDER ?? 'local') as 'local' | 'central',
+  otpTest: process.env.OTP_TEST === 'true',
   url: (process.env.CENTRAL_AUTH_URL ?? '').replace(/\/+$/, ''),
   timeoutMs: Number(process.env.CENTRAL_AUTH_TIMEOUT_MS ?? 8000),
   emailDomain: process.env.AUTH_EMAIL_DOMAIN ?? '',
@@ -44,7 +45,7 @@ export const centralAuthConfig = registerAs('centralAuth', () => ({
 export type CentralAuthConfig = ConfigType<typeof centralAuthConfig>;
 
 export const otpConfig = registerAs('otp', () => ({
-  mode: (process.env.OTP_MODE ?? 'test') as 'test' | 'sms',
+  mode: (process.env.OTP_TEST === 'true' ? 'test' : (process.env.OTP_MODE ?? 'test')) as 'test' | 'sms',
   testCode: process.env.OTP_TEST_CODE ?? '123456',
   ttlSeconds: Number(process.env.OTP_TTL_SECONDS ?? 600),
   maxAttempts: Number(process.env.OTP_MAX_ATTEMPTS ?? 5),

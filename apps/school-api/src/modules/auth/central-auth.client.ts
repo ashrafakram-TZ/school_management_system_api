@@ -108,7 +108,7 @@ export class CentralAuthClient {
   constructor(@Inject(centralAuthConfig.KEY) private readonly config: CentralAuthConfig) {}
 
   get enabled(): boolean {
-    return this.config.provider === 'central';
+    return this.config.provider === 'central' && !this.config.otpTest;
   }
 
   sendOtp(mobile: string, appHash?: string | null): Promise<void> {
