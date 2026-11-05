@@ -47,7 +47,7 @@ describe('PDFs', () => {
     expect(one.subarray(0, 5).toString()).toBe('%PDF-');
     const sheet = await idCardSheetPdf(await Promise.all(Array.from({ length: 12 }, card)), 'ID cards');
     expect(sheet.subarray(0, 5).toString()).toBe('%PDF-');
-    expect((sheet.toString('latin1').match(/\/Type \/Page\b/g) ?? []).length).toBe(2);
+    expect((sheet.toString('latin1').match(/\/Type \/Page\b/g) ?? []).length).toBe(4);
   });
 
   it('draws a transfer certificate', async () => {

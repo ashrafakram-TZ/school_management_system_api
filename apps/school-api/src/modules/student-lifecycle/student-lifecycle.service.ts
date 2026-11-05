@@ -43,6 +43,11 @@ interface CardRow {
   roll_no: number | null;
   guardian_name: string | null;
   guardian_mobile: string | null;
+  father_name?: string | null;
+  mother_name?: string | null;
+  address_line?: string | null;
+  city?: string | null;
+  pincode?: string | null;
 }
 
 const MAX_SHEET_CARDS = 400;
@@ -421,7 +426,9 @@ export class StudentLifecycleService {
     const rows: CardRow[] = await this.dataSource.query(
       `SELECT s.id, s.first_name, s.last_name, s.admission_no, to_char(s.dob, 'YYYY-MM-DD') AS dob, s.blood_group,
               s.photo_file_id, s.card_version, s.status, c.name AS class_name, sec.name AS section_name, e.roll_no,
-              g.name AS guardian_name, g.mobile AS guardian_mobile
+              g.name AS guardian_name, g.mobile AS guardian_mobile,
+              f.name AS father_name, m.name AS mother_name,
+              s.address_line, s.city, s.pincode
        FROM students s
        LEFT JOIN academic_years y ON y.school_id = s.school_id AND y.is_current = true AND y.deleted_at IS NULL
        LEFT JOIN student_enrollments e ON e.student_id = s.id AND e.academic_year_id = y.id
@@ -431,6 +438,14 @@ export class StudentLifecycleService {
          SELECT gg.name, gg.mobile FROM student_guardians sg JOIN guardians gg ON gg.id = sg.guardian_id AND gg.deleted_at IS NULL
          WHERE sg.student_id = s.id ORDER BY sg.is_primary DESC, sg.id LIMIT 1
        ) g ON true
+       LEFT JOIN LATERAL (
+         SELECT gg.name FROM student_guardians sg JOIN guardians gg ON gg.id = sg.guardian_id AND gg.deleted_at IS NULL
+         WHERE sg.student_id = s.id AND sg.relation = 'father' ORDER BY sg.id LIMIT 1
+       ) f ON true
+       LEFT JOIN LATERAL (
+         SELECT gg.name FROM student_guardians sg JOIN guardians gg ON gg.id = sg.guardian_id AND gg.deleted_at IS NULL
+         WHERE sg.student_id = s.id AND sg.relation = 'mother' ORDER BY sg.id LIMIT 1
+       ) m ON true
        WHERE ${conditions.join(' AND ')}
        ORDER BY sec.name NULLS LAST, e.roll_no NULLS LAST, s.first_name`,
       params,
@@ -456,6 +471,8 @@ export class StudentLifecycleService {
         school_code: school.code,
         school_city: school.city,
         school_phone: school.phone,
+        school_address: [school.address, school.city, school.state, school.pincode].filter(Boolean).join(', ') || null,
+        school_email: school.email,
         school_logo: logo,
         academic_year: year?.name ?? null,
         name: fullName(row),
@@ -466,12 +483,15 @@ export class StudentLifecycleService {
         blood_group: row.blood_group,
         guardian_name: row.guardian_name,
         guardian_mobile: row.guardian_mobile,
+        father_name: row.father_name ?? null,
+        mother_name: row.mother_name ?? null,
+        address: [row.address_line, row.city, row.pincode].filter(Boolean).join(', ') || null,
         photo: await this.files.readImage(row.photo_file_id),
         qr: await QRCode.toBuffer(this.qr.student(row.id, row.card_version), {
           errorCorrectionLevel: 'M',
           margin: 1,
           width: 320,
-          color: { dark: '#0f1a15', light: '#ffffff' },
+          color: { dark: '#C2410C', light: '#ffffff' },
         }),
       });
     }
