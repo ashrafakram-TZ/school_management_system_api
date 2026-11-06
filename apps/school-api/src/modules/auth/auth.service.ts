@@ -123,10 +123,10 @@ export class AuthService {
 
   private async assertApp(user: User, app: ClientApp): Promise<void> {
     const access = await this.access.load(user.id);
-    if (access && canOpen(app, access.apps)) return;
+    if (access && (canOpen(app, access.apps) || (app === 'admin' && access.apps.length > 0))) return;
     throw AppException.forbidden(
       app === 'admin'
-        ? 'This number cannot sign in to the admin web. Use the mobile app.'
+        ? 'This mobile number is not registered for school access. Contact the school office.'
         : 'This number has no Parent, Staff or Driver access. Contact the school office.',
       'APP_NOT_ALLOWED',
     );

@@ -134,6 +134,9 @@ export class StaffDocumentDto {
 }
 
 export class BankSummaryDto {
+  @ApiProperty({ nullable: true, type: Number })
+  id?: number;
+
   @ApiProperty({ nullable: true, type: String })
   account_holder: string | null;
 
@@ -151,9 +154,15 @@ export class BankSummaryDto {
 
   @ApiProperty()
   complete: boolean;
+
+  @ApiProperty({ default: false })
+  is_primary: boolean;
 }
 
 export class BankDetailsDto {
+  @ApiProperty({ nullable: true, type: Number })
+  id?: number;
+
   @ApiProperty({ example: 'Priya Venkatesh' })
   account_holder: string | null;
 
@@ -168,6 +177,15 @@ export class BankDetailsDto {
 
   @ApiProperty({ example: 'ABCPV1234K', nullable: true, type: String })
   pan: string | null;
+
+  @ApiProperty({ nullable: true, type: String, example: 'XXXX6789' })
+  account_masked?: string | null;
+
+  @ApiProperty({ nullable: true, type: String, example: 'XXXX234K' })
+  pan_masked?: string | null;
+
+  @ApiProperty({ default: false })
+  is_primary?: boolean;
 }
 
 export class TeachingAssignmentDto {
@@ -217,6 +235,9 @@ export class StaffDetailDto extends StaffListItemDto {
 
   @ApiProperty({ type: BankSummaryDto })
   bank: BankSummaryDto;
+
+  @ApiProperty({ type: [BankSummaryDto] })
+  banks: BankSummaryDto[];
 
   @ApiProperty({ type: [TeachingAssignmentDto] })
   assignments: TeachingAssignmentDto[];

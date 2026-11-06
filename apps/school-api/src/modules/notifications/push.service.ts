@@ -33,7 +33,7 @@ export class PushService {
   constructor(@Inject(pushConfig.KEY) private readonly config: PushConfig) {}
 
   get enabled(): boolean {
-    return this.config.driver === 'fcm';
+    return this.config.driver === 'fcm' || this.config.driver === 'onesignal';
   }
 
   async send(message: PushMessage): Promise<PushResult> {
@@ -49,13 +49,20 @@ export class PushService {
     if (!message.tokens.length) {
       return {
         status: 'skipped',
-        provider: 'fcm',
+        provider: this.config.driver,
         successCount: 0,
         invalidTokens: [],
         error: 'No registered device for this user',
       };
     }
 
+    if (this.config.driver === 'onesignal') {
+      return this.sendOneSignal(message);
+    }
+    return this.sendFcm(message);
+  }
+
+  private async sendFcm(message: PushMessage): Promise<PushResult> {
     const response = await getMessaging(this.firebase()).sendEachForMulticast({
       tokens: message.tokens,
       notification: { title: message.title, body: message.body },
@@ -82,6 +89,60 @@ export class PushService {
       successCount: 0,
       invalidTokens,
       error: 'Every device token was invalid',
+    };
+  }
+
+  private async sendOneSignal(message: PushMessage): Promise<PushResult> {
+    if (!this.config.oneSignalAppId || !this.config.oneSignalApiKey) {
+      return {
+        status: 'failed',
+        provider: 'onesignal',
+        successCount: 0,
+        invalidTokens: [],
+        error: 'OneSignal App ID or REST API Key is missing in .env',
+      };
+    }
+
+    const payload = {
+      app_id: this.config.oneSignalAppId,
+      include_subscription_ids: message.tokens,
+      include_player_ids: message.tokens,
+      headings: { en: message.title },
+      contents: { en: message.body },
+      data: message.data,
+    };
+
+    const response = await fetch('https://api.onesignal.com/notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Key ${this.config.oneSignalApiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const resJson = (await response.json().catch(() => ({}))) as {
+      id?: string;
+      recipients?: number;
+      errors?: string[] | Record<string, unknown>;
+      invalid_player_ids?: string[];
+    };
+
+    if (!response.ok && !resJson.recipients) {
+      const errMsg = Array.isArray(resJson.errors)
+        ? resJson.errors.join(', ')
+        : typeof resJson.errors === 'object'
+          ? JSON.stringify(resJson.errors)
+          : `OneSignal error (${response.status})`;
+      throw new Error(errMsg);
+    }
+
+    const recipients = resJson.recipients ?? (resJson.id ? message.tokens.length : 0);
+    return {
+      status: recipients > 0 ? 'sent' : 'failed',
+      provider: 'onesignal',
+      successCount: recipients,
+      invalidTokens: resJson.invalid_player_ids ?? [],
     };
   }
 

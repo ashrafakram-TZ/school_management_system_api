@@ -286,13 +286,23 @@ export class EnvironmentVariables {
   @IsUrl({ require_tld: false, require_protocol: true })
   PING_API_URL?: string;
 
-  @IsIn(['off', 'fcm'])
+  @IsIn(['off', 'fcm', 'onesignal'])
   PUSH_DRIVER: string = 'off';
 
   @ValidateIf((env: EnvironmentVariables) => env.PUSH_DRIVER === 'fcm')
   @IsString()
   @IsNotEmpty()
   FIREBASE_CREDENTIALS_FILE: string;
+
+  @ValidateIf((env: EnvironmentVariables) => env.PUSH_DRIVER === 'onesignal')
+  @IsOptional()
+  @IsString()
+  ONESIGNAL_APP_ID?: string;
+
+  @ValidateIf((env: EnvironmentVariables) => env.PUSH_DRIVER === 'onesignal')
+  @IsOptional()
+  @IsString()
+  ONESIGNAL_REST_API_KEY?: string;
 
   @IsIn(['local'], { message: 'STORAGE_DRIVER supports local in this phase; s3 comes with the infrastructure phase' })
   STORAGE_DRIVER: string = 'local';
