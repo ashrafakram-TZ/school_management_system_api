@@ -665,7 +665,7 @@ Server settings: `AGORA_APP_ID` and `AGORA_APP_CERTIFICATE` (tokens), `AGORA_TOK
 
 ## Digital diary
 
-Teachers post **homework**, **remarks**, **feedback** or **notes** to a whole class (only if they teach every section), a section, or chosen students (up to 60), with up to 5 files and, for homework, a due date. The school chooses in School setup → Diary and chat → Diary review (option A or B): `all` (option A: every post waits) or `remarks` (option B, default: remarks and feedback wait for the office; homework and notes go out at once). Published posts reach parents with a `DIARY_POSTED` push.
+Teachers post **homework**, **remarks**, **feedback** or **notes** to a whole class (only if they teach every section), a section, or chosen students (up to 60), with up to 5 files and, for homework, a due date. The school chooses in School setup → Diary and chat → Diary review (option A, B or C): `all` (option A: every post waits), `remarks` (option B, default: remarks and feedback wait for the office; homework and notes go out at once), or `none` (option C: no review, all posts go out at once). Published posts reach parents with a `DIARY_POSTED` push.
 
 | Call | Screen |
 |---|---|

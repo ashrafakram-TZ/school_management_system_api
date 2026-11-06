@@ -15,6 +15,7 @@ export const TYPE_LABELS: Record<DiaryType, string> = {
 };
 
 export function needsReview(mode: DiaryReviewMode, type: DiaryType): boolean {
+  if (mode === 'none') return false;
   return mode === 'all' || REVIEWED_TYPES.includes(type);
 }
 
