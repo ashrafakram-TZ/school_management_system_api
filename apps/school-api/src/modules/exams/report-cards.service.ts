@@ -66,6 +66,8 @@ interface SchoolInfo {
   email: string | null;
   board: string | null;
   logo_file_id: number | null;
+  signature_file_id: number | null;
+  principal_name: string | null;
 }
 
 const ENROLLMENT_SQL = `
@@ -172,6 +174,8 @@ export class ReportCardsService {
         email: school.email,
         board: school.board,
         logo_url: this.files.linkFor(school.logo_file_id),
+        principal_name: school.principal_name,
+        signature_url: this.files.linkFor(school.signature_file_id),
       },
       student: this.studentDto(enrollment),
       scope: {
@@ -426,7 +430,11 @@ export class ReportCardsService {
 
   private async school(schoolId: number): Promise<SchoolInfo> {
     const [row] = await this.dataSource.query(
-      `SELECT name, address, city, state, pincode, phone, email, board, logo_file_id FROM schools WHERE id = $1`,
+      `SELECT name, address, city, state, pincode, phone, email, board, logo_file_id, signature_file_id FROM schools WHERE id = $1`,
+      [schoolId],
+    );
+    const [principal] = await this.dataSource.query(
+      `SELECT u.name FROM staff s JOIN users u ON u.id = s.user_id WHERE s.school_id = $1 AND s.designation ILIKE '%principal%' AND s.deleted_at IS NULL LIMIT 1`,
       [schoolId],
     );
     const place = [row?.city, [row?.state, row?.pincode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
@@ -437,17 +445,22 @@ export class ReportCardsService {
       email: row?.email ?? null,
       board: row?.board ?? null,
       logo_file_id: row?.logo_file_id ?? null,
+      signature_file_id: row?.signature_file_id ?? null,
+      principal_name: principal?.name ?? null,
     };
   }
 
   private async pdfData(schoolId: number, card: ReportCardDto): Promise<ReportCardPdfData> {
-    const [school] = await this.dataSource.query(`SELECT logo_file_id FROM schools WHERE id = $1`, [schoolId]);
+    const [school] = await this.dataSource.query(`SELECT logo_file_id, signature_file_id FROM schools WHERE id = $1`, [
+      schoolId,
+    ]);
     const [student] = await this.dataSource.query(`SELECT photo_file_id FROM students WHERE id = $1`, [
       card.student.id,
     ]);
     return {
       card,
       logo: await this.files.readImage(school?.logo_file_id ?? null),
+      signature: await this.files.readImage(school?.signature_file_id ?? null),
       photo: await this.files.readImage(student?.photo_file_id ?? null),
       generated_on: todayIn(this.app.timeZone),
     };

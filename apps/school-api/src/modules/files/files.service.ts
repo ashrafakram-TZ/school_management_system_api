@@ -65,7 +65,7 @@ export class FilesService {
     let thumbnailKey: string | null = null;
 
     if (isImage) {
-      const image = await this.processImage(input.buffer, input.mimetype);
+      const image = await this.processImage(input.buffer, input.mimetype, purpose);
       content = image.content;
       width = image.width;
       height = image.height;
@@ -180,9 +180,12 @@ export class FilesService {
     return `${this.app.publicUrl}/api/v1/files/${id}/content?${params.toString()}`;
   }
 
-  private async processImage(buffer: Buffer, mimetype: string) {
+  private async processImage(buffer: Buffer, mimetype: string, purpose?: string) {
     try {
-      const pipeline = sharp(buffer, { failOn: 'error' }).rotate();
+      let pipeline = sharp(buffer, { failOn: 'error' }).rotate();
+      if (purpose === 'school_signature') {
+        pipeline = pipeline.trim();
+      }
       const resized = pipeline
         .clone()
         .resize({ width: MAX_IMAGE_SIDE, height: MAX_IMAGE_SIDE, fit: 'inside', withoutEnlargement: true });

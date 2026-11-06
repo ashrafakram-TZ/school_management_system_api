@@ -70,6 +70,12 @@ export class ReportCardSchoolDto {
 
   @ApiProperty({ example: '/api/v1/files/3/content?expires=…&signature=…', nullable: true, type: String })
   logo_url: string | null;
+
+  @ApiPropertyOptional({ example: 'Meenakshi Sundaram', nullable: true, type: String })
+  principal_name?: string | null;
+
+  @ApiPropertyOptional({ example: '/api/v1/files/4/content?expires=…&signature=…', nullable: true, type: String })
+  signature_url?: string | null;
 }
 
 export class ReportCardStudentDto {

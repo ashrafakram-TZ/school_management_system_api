@@ -5,6 +5,7 @@ import { formatMarks } from './report-card.logic';
 export interface ReportCardPdfData {
   card: ReportCardDto;
   logo: Buffer | null;
+  signature?: Buffer | null;
   photo: Buffer | null;
   generated_on: string;
 }
@@ -123,7 +124,7 @@ export function drawReportCard(doc: Pdf, data: ReportCardPdfData): void {
   const gradingBottom = gradingTable(doc, card, layout, summaryBottom);
 
   // 8. Signatures Section with 3 Bordered Rectangles
-  signatures(doc, card, layout, gradingBottom);
+  signatures(doc, data, layout, gradingBottom);
 
   // 9. Page Number (1 centered at bottom)
   doc
@@ -709,16 +710,18 @@ function gradingTable(doc: Pdf, card: ReportCardDto, layout: Layout, summaryBott
   return tableY + totalH;
 }
 
-function signatures(doc: Pdf, card: ReportCardDto, layout: Layout, gradingBottom: number): void {
-  const { left, width } = layout;
-  const sigY = gradingBottom + 16;
+function signatures(doc: Pdf, data: ReportCardPdfData, layout: Layout, gradingBottom: number): void {
+  const { card, signature } = data;
+  const { left, width, pageHeight } = layout;
+  const sigY = Math.max(gradingBottom + 20, pageHeight - 110);
   const boxWidth = 100;
   const boxHeight = 24;
 
+  const principalName = card.school.principal_name || 'Meenakshi Sundaram';
   const cols = [
-    { label: 'Class Teacher', name: card.student.class_teacher || 'Jacob Fernandes' },
-    { label: 'Principal', name: 'Father Justin' },
-    { label: 'Parents', name: '' },
+    { label: 'Class Teacher', name: card.student.class_teacher || '' },
+    { label: 'Principal', name: principalName },
+    { label: 'Parents', name: card.student.parent_name || '' },
   ];
 
   const colSlot = width / cols.length;
@@ -743,6 +746,18 @@ function signatures(doc: Pdf, card: ReportCardDto, layout: Layout, gradingBottom
       .lineWidth(0.8)
       .strokeColor('#000000')
       .stroke();
+
+    if (col.label === 'Principal' && signature) {
+      try {
+        doc.image(signature, boxX + 4, sigY + 12, {
+          fit: [boxWidth - 8, boxHeight - 2],
+          align: 'center',
+          valign: 'center',
+        });
+      } catch {
+        // preserve clean box
+      }
+    }
 
     // Label below
     doc
