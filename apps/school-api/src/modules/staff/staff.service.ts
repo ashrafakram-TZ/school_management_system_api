@@ -22,6 +22,7 @@ import {
   BankDetailsInputDto,
   CreateStaffDto,
   QualificationsDto,
+  SaveStaffBanksDto,
   STAFF_ROLE_CODES,
   StaffDocumentInputDto,
   StaffQueryDto,
@@ -29,12 +30,14 @@ import {
 } from './dto/staff-input.dto';
 import {
   BankDetailsDto,
+  BankSummaryDto,
   QualificationDto,
   StaffDetailDto,
   StaffDocumentDto,
   StaffInsightsDto,
   StaffListItemDto,
 } from './dto/staff-response.dto';
+import { StaffBankAccount } from './entities/staff-bank-account.entity';
 import { StaffDocument, StaffDocumentType } from './entities/staff-document.entity';
 import { StaffQualification } from './entities/staff-qualification.entity';
 import { Staff } from './entities/staff.entity';
@@ -69,6 +72,7 @@ export class StaffService {
   constructor(
     @InjectRepository(Staff) private readonly staff: Repository<Staff>,
     @InjectRepository(StaffDocument) private readonly documents: Repository<StaffDocument>,
+    @InjectRepository(StaffBankAccount) private readonly bankAccounts: Repository<StaffBankAccount>,
     @InjectRepository(AcademicYear) private readonly years: Repository<AcademicYear>,
     private readonly access: AccessService,
     private readonly files: FilesService,
@@ -165,7 +169,7 @@ export class StaffService {
     })) as StaffWithUser | null;
     if (!row) throw AppException.notFound('Staff member not found', 'STAFF_NOT_FOUND');
     const yearId = await this.currentYearId(schoolId);
-    const [metrics, classTeacher, documents, assignments] = await Promise.all([
+    const [metrics, classTeacher, documents, assignments, bankRows] = await Promise.all([
       this.metrics([row], yearId),
       this.classTeacherOf([row], yearId),
       this.documents.find({ where: { staff_id: id }, order: { created_at: 'DESC' } }),
@@ -173,7 +177,32 @@ export class StaffService {
         where: { teacher_user_id: row.user_id, academic_year_id: yearId ?? 0 },
         relations: { section: { school_class: true }, subject: true },
       }),
+      this.bankAccounts.find({
+        where: { staff_id: id, school_id: schoolId },
+        order: { is_primary: 'DESC', id: 'ASC' },
+      }),
     ]);
+    const banksSummary: BankSummaryDto[] = bankRows.map((b) => ({
+      id: b.id,
+      account_holder: b.account_holder,
+      bank_name: b.bank_name,
+      ifsc: b.ifsc,
+      account_masked: masked(b.account_no_last4),
+      pan_masked: masked(b.pan_last4),
+      complete: Boolean(b.account_no_last4 && b.ifsc),
+      is_primary: b.is_primary,
+    }));
+    const primaryBank: BankSummaryDto = banksSummary.find((b) => b.is_primary) ??
+      banksSummary[0] ?? {
+        id: undefined,
+        account_holder: row.bank_account_holder,
+        bank_name: row.bank_name,
+        ifsc: row.bank_ifsc,
+        account_masked: masked(row.bank_account_last4),
+        pan_masked: masked(row.pan_last4),
+        complete: Boolean(row.bank_account_last4 && row.bank_ifsc),
+        is_primary: true,
+      };
     return {
       ...this.toListItem(row, metrics.get(row.id)!, classTeacher.get(row.user_id) ?? [], todayIn(this.app.timeZone)),
       language: row.user.language,
@@ -194,14 +223,8 @@ export class StaffService {
           year_completed,
         })),
       documents: await this.presentDocuments(documents),
-      bank: {
-        account_holder: row.bank_account_holder,
-        bank_name: row.bank_name,
-        ifsc: row.bank_ifsc,
-        account_masked: masked(row.bank_account_last4),
-        pan_masked: masked(row.pan_last4),
-        complete: Boolean(row.bank_account_last4 && row.bank_ifsc),
-      },
+      bank: primaryBank,
+      banks: banksSummary,
       assignments: assignments
         .filter((item) => item.section && item.subject)
         .sort(
@@ -457,37 +480,184 @@ export class StaffService {
     return { id: documentId };
   }
 
-  async bank(schoolId: number, id: number): Promise<BankDetailsDto> {
+  async bank(schoolId: number, id: number): Promise<BankDetailsDto[]> {
     await this.find(schoolId, id);
-    const row = await this.staff
-      .createQueryBuilder('st')
-      .addSelect(['st.bank_account_enc', 'st.pan_enc'])
-      .where('st.id = :id', { id })
-      .getOneOrFail();
-    return {
-      account_holder: row.bank_account_holder,
-      bank_name: row.bank_name,
-      ifsc: row.bank_ifsc,
-      account_no: row.bank_account_enc ? this.cipher.decrypt(row.bank_account_enc) : null,
-      pan: row.pan_enc ? this.cipher.decrypt(row.pan_enc) : null,
-    };
+    const rows = await this.bankAccounts
+      .createQueryBuilder('ba')
+      .addSelect(['ba.account_no_enc', 'ba.pan_enc'])
+      .where('ba.staff_id = :id AND ba.school_id = :schoolId', { id, schoolId })
+      .orderBy('ba.is_primary', 'DESC')
+      .addOrderBy('ba.id', 'ASC')
+      .getMany();
+    if (!rows.length) {
+      const row = await this.staff
+        .createQueryBuilder('st')
+        .addSelect(['st.bank_account_enc', 'st.pan_enc'])
+        .where('st.id = :id', { id })
+        .getOneOrFail();
+      if (!row.bank_account_holder && !row.bank_name && !row.bank_ifsc) {
+        return [];
+      }
+      return [
+        {
+          account_holder: row.bank_account_holder,
+          bank_name: row.bank_name,
+          ifsc: row.bank_ifsc,
+          account_no: row.bank_account_enc ? this.cipher.decrypt(row.bank_account_enc) : null,
+          pan: row.pan_enc ? this.cipher.decrypt(row.pan_enc) : null,
+          account_masked: masked(row.bank_account_last4),
+          pan_masked: masked(row.pan_last4),
+          is_primary: true,
+        },
+      ];
+    }
+    return rows.map((b) => ({
+      id: b.id,
+      account_holder: b.account_holder,
+      bank_name: b.bank_name,
+      ifsc: b.ifsc,
+      account_no: b.account_no_enc ? this.cipher.decrypt(b.account_no_enc) : null,
+      pan: b.pan_enc ? this.cipher.decrypt(b.pan_enc) : null,
+      account_masked: masked(b.account_no_last4),
+      pan_masked: masked(b.pan_last4),
+      is_primary: b.is_primary,
+    }));
   }
 
-  async saveBank(schoolId: number, id: number, dto: BankDetailsInputDto): Promise<StaffDetailDto> {
+  async saveBank(
+    schoolId: number,
+    id: number,
+    payload: SaveStaffBanksDto | BankDetailsInputDto[] | BankDetailsInputDto,
+  ): Promise<StaffDetailDto> {
     await this.find(schoolId, id);
-    await this.staff.update(id, {
-      bank_account_holder: dto.account_holder,
-      bank_name: dto.bank_name,
-      bank_ifsc: dto.ifsc,
-      bank_account_enc: this.cipher.encrypt(dto.account_no),
-      bank_account_last4: lastDigits(dto.account_no),
-      ...(dto.pan !== undefined
-        ? dto.pan
-          ? { pan_enc: this.cipher.encrypt(dto.pan), pan_last4: lastDigits(dto.pan) }
-          : { pan_enc: null, pan_last4: null }
-        : {}),
+    let accounts: BankDetailsInputDto[] = [];
+    if (Array.isArray(payload)) {
+      accounts = payload;
+    } else if (
+      payload &&
+      typeof payload === 'object' &&
+      'accounts' in payload &&
+      Array.isArray((payload as SaveStaffBanksDto).accounts)
+    ) {
+      accounts = (payload as SaveStaffBanksDto).accounts;
+    } else if (payload && typeof payload === 'object') {
+      accounts = [payload as BankDetailsInputDto];
+    }
+    accounts = accounts.filter((a) => a && (a.account_holder || a.bank_name || a.account_no));
+    if (!accounts.length) {
+      throw AppException.badRequest('At least one bank account is required');
+    }
+    let primaryIndex = accounts.findIndex((a) => a.is_primary);
+    if (primaryIndex < 0) primaryIndex = 0;
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(StaffBankAccount, { staff_id: id, school_id: schoolId });
+      const entities: StaffBankAccount[] = [];
+      for (let i = 0; i < accounts.length; i++) {
+        const acc = accounts[i];
+        const isPrimary = i === primaryIndex;
+        const bankAcc = manager.create(StaffBankAccount, {
+          school_id: schoolId,
+          staff_id: id,
+          account_holder: acc.account_holder,
+          bank_name: acc.bank_name,
+          ifsc: acc.ifsc,
+          account_no_enc: this.cipher.encrypt(acc.account_no),
+          account_no_last4: lastDigits(acc.account_no),
+          pan_enc: acc.pan ? this.cipher.encrypt(acc.pan) : null,
+          pan_last4: acc.pan ? lastDigits(acc.pan) : null,
+          is_primary: isPrimary,
+        });
+        entities.push(bankAcc);
+      }
+      await manager.save(StaffBankAccount, entities);
+
+      const primary = accounts[primaryIndex];
+      await manager.update(Staff, id, {
+        bank_account_holder: primary.account_holder,
+        bank_name: primary.bank_name,
+        bank_ifsc: primary.ifsc,
+        bank_account_enc: this.cipher.encrypt(primary.account_no),
+        bank_account_last4: lastDigits(primary.account_no),
+        pan_enc: primary.pan ? this.cipher.encrypt(primary.pan) : null,
+        pan_last4: primary.pan ? lastDigits(primary.pan) : null,
+      });
     });
     return this.get(schoolId, id);
+  }
+
+  async setPrimaryBank(schoolId: number, staffId: number, bankId: number): Promise<StaffDetailDto> {
+    await this.find(schoolId, staffId);
+    const target = await this.bankAccounts
+      .createQueryBuilder('ba')
+      .addSelect(['ba.account_no_enc', 'ba.pan_enc'])
+      .where('ba.id = :bankId AND ba.staff_id = :staffId AND ba.school_id = :schoolId', {
+        bankId,
+        staffId,
+        schoolId,
+      })
+      .getOne();
+    if (!target) throw AppException.notFound('Bank account not found', 'BANK_ACCOUNT_NOT_FOUND');
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(StaffBankAccount, { staff_id: staffId, school_id: schoolId }, { is_primary: false });
+      await manager.update(StaffBankAccount, { id: bankId }, { is_primary: true });
+      await manager.update(Staff, staffId, {
+        bank_account_holder: target.account_holder,
+        bank_name: target.bank_name,
+        bank_ifsc: target.ifsc,
+        bank_account_enc: target.account_no_enc,
+        bank_account_last4: target.account_no_last4,
+        pan_enc: target.pan_enc,
+        pan_last4: target.pan_last4,
+      });
+    });
+    return this.get(schoolId, staffId);
+  }
+
+  async deleteBankAccount(schoolId: number, staffId: number, bankId: number): Promise<StaffDetailDto> {
+    await this.find(schoolId, staffId);
+    const account = await this.bankAccounts.findOneBy({ id: bankId, staff_id: staffId, school_id: schoolId });
+    if (!account) throw AppException.notFound('Bank account not found', 'BANK_ACCOUNT_NOT_FOUND');
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(StaffBankAccount, { id: bankId });
+      const remaining = await manager
+        .createQueryBuilder(StaffBankAccount, 'ba')
+        .addSelect(['ba.account_no_enc', 'ba.pan_enc'])
+        .where('ba.staff_id = :staffId AND ba.school_id = :schoolId', { staffId, schoolId })
+        .orderBy('ba.is_primary', 'DESC')
+        .addOrderBy('ba.id', 'ASC')
+        .getMany();
+
+      if (!remaining.length) {
+        await manager.update(Staff, staffId, {
+          bank_account_holder: null,
+          bank_name: null,
+          bank_ifsc: null,
+          bank_account_enc: null,
+          bank_account_last4: null,
+          pan_enc: null,
+          pan_last4: null,
+        });
+      } else {
+        let primary = remaining.find((r) => r.is_primary);
+        if (!primary) {
+          primary = remaining[0];
+          await manager.update(StaffBankAccount, { id: primary.id }, { is_primary: true });
+        }
+        await manager.update(Staff, staffId, {
+          bank_account_holder: primary.account_holder,
+          bank_name: primary.bank_name,
+          bank_ifsc: primary.ifsc,
+          bank_account_enc: primary.account_no_enc,
+          bank_account_last4: primary.account_no_last4,
+          pan_enc: primary.pan_enc,
+          pan_last4: primary.pan_last4,
+        });
+      }
+    });
+    return this.get(schoolId, staffId);
   }
 
   async currentYearId(schoolId: number): Promise<number | null> {

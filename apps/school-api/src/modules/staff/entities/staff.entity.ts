@@ -1,6 +1,7 @@
 import { SchoolScopedEntity } from '@app/common';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { StaffBankAccount } from './staff-bank-account.entity';
 import { StaffDocument } from './staff-document.entity';
 import { StaffQualification } from './staff-qualification.entity';
 
@@ -95,4 +96,7 @@ export class Staff extends SchoolScopedEntity {
 
   @OneToMany(() => StaffDocument, (item) => item.staff)
   documents?: StaffDocument[];
+
+  @OneToMany(() => StaffBankAccount, (item) => item.staff)
+  bank_accounts?: StaffBankAccount[];
 }

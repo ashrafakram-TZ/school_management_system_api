@@ -239,6 +239,11 @@ export class StaffDocumentInputDto {
 }
 
 export class BankDetailsInputDto {
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsInt()
+  id?: number;
+
   @ApiProperty({ example: 'Priya Venkatesh' })
   @Transform(trim)
   @IsString()
@@ -267,6 +272,21 @@ export class BankDetailsInputDto {
   @ValidateIf((_dto, value) => value !== null && value !== '')
   @Matches(/^[A-Z]{5}\d{4}[A-Z]$/, { message: 'pan must look like ABCPV1234K' })
   pan?: string | null;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  is_primary?: boolean;
+}
+
+export class SaveStaffBanksDto {
+  @ApiProperty({ type: [BankDetailsInputDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => BankDetailsInputDto)
+  accounts: BankDetailsInputDto[];
 }
 
 export class StaffQueryDto extends ListQueryDto {

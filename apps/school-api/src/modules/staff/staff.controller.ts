@@ -24,6 +24,7 @@ import {
   CreateStaffDto,
   QualificationsDto,
   SaveAssignmentsDto,
+  SaveStaffBanksDto,
   StaffDocumentInputDto,
   StaffQueryDto,
   UpdateStaffDto,
@@ -172,8 +173,8 @@ export class StaffController {
 
   @Get(':id/bank')
   @RequirePermissions(PERMISSIONS.STAFF_BANK)
-  @ApiOperation({ summary: 'Full bank account and PAN (decrypted). Needs the staff.bank permission.' })
-  @ApiEnvelope(BankDetailsDto)
+  @ApiOperation({ summary: 'Full bank accounts and PAN (decrypted). Needs the staff.bank permission.' })
+  @ApiEnvelope(BankDetailsDto, { isArray: true })
   @ApiErrors(HttpStatus.NOT_FOUND)
   bank(@SchoolId() schoolId: number, @Param('id', ParseIntPipe) id: number) {
     return this.staff.bank(schoolId, id);
@@ -185,8 +186,40 @@ export class StaffController {
   @ApiOperation({ summary: 'Save bank details. Account number and PAN are stored encrypted.' })
   @ApiEnvelope(StaffDetailDto, { message: 'Bank details saved' })
   @ApiErrors(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND)
-  saveBank(@SchoolId() schoolId: number, @Param('id', ParseIntPipe) id: number, @Body() dto: BankDetailsInputDto) {
+  saveBank(
+    @SchoolId() schoolId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SaveStaffBanksDto | BankDetailsInputDto[] | BankDetailsInputDto,
+  ) {
     return this.staff.saveBank(schoolId, id, dto);
+  }
+
+  @Patch(':id/bank/:bankId/primary')
+  @RequirePermissions(PERMISSIONS.STAFF_BANK)
+  @ResponseMessage('Primary bank account updated')
+  @ApiOperation({ summary: 'Set a bank account as primary' })
+  @ApiEnvelope(StaffDetailDto, { message: 'Primary bank account updated' })
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  setPrimary(
+    @SchoolId() schoolId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('bankId', ParseIntPipe) bankId: number,
+  ) {
+    return this.staff.setPrimaryBank(schoolId, id, bankId);
+  }
+
+  @Delete(':id/bank/:bankId')
+  @RequirePermissions(PERMISSIONS.STAFF_BANK)
+  @ResponseMessage('Bank account removed')
+  @ApiOperation({ summary: 'Remove a bank account' })
+  @ApiEnvelope(StaffDetailDto, { message: 'Bank account removed' })
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  removeBank(
+    @SchoolId() schoolId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('bankId', ParseIntPipe) bankId: number,
+  ) {
+    return this.staff.deleteBankAccount(schoolId, id, bankId);
   }
 }
 

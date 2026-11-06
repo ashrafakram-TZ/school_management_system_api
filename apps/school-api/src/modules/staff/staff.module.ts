@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AccessModule } from '../access/access.module';
 import { AcademicYear } from '../setup/entities/academic-year.entity';
 import { AssignmentsService } from './assignments.service';
+import { StaffBankAccount } from './entities/staff-bank-account.entity';
 import { StaffDocument } from './entities/staff-document.entity';
 import { StaffQualification } from './entities/staff-qualification.entity';
 import { Staff } from './entities/staff.entity';
@@ -12,7 +13,14 @@ import { StaffService } from './staff.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Staff, StaffQualification, StaffDocument, TeacherAssignment, AcademicYear]),
+    TypeOrmModule.forFeature([
+      Staff,
+      StaffQualification,
+      StaffDocument,
+      StaffBankAccount,
+      TeacherAssignment,
+      AcademicYear,
+    ]),
     AccessModule,
   ],
   controllers: [StaffController, TeacherAssignmentsController],
