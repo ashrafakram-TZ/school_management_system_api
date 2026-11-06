@@ -5,6 +5,7 @@ export type BannerSeverity = (typeof BANNER_SEVERITIES)[number];
 
 export const BANNER_CODES = [
   'HOLIDAY_TODAY',
+  'UPCOMING_HOLIDAY',
   'ON_LEAVE_TODAY',
   'CHECK_IN_PENDING',
   'ATTENDANCE_NOT_MARKED',
@@ -19,6 +20,7 @@ export type BannerCode = (typeof BANNER_CODES)[number];
 
 export const BANNER_SCREENS = [
   'home',
+  'holidays',
   'check_in',
   'attendance',
   'timetable',

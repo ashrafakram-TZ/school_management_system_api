@@ -390,6 +390,22 @@ export class HolidayDto {
   days: number;
 }
 
+export class MobileHolidayDto extends HolidayDto {
+  @ApiPropertyOptional({ example: 2, description: 'Days remaining until this holiday begins (null for past holidays)' })
+  days_until?: number | null;
+}
+
+export class MobileHolidayOverviewDto {
+  @ApiPropertyOptional({ type: MobileHolidayDto, nullable: true, description: 'The next upcoming holiday' })
+  next_holiday: MobileHolidayDto | null;
+
+  @ApiProperty({ type: [MobileHolidayDto], description: 'Upcoming holidays from today onward' })
+  upcoming: MobileHolidayDto[];
+
+  @ApiProperty({ type: [MobileHolidayDto], description: 'All holidays for the school year' })
+  all: MobileHolidayDto[];
+}
+
 export class SetupSummaryDto {
   @ApiProperty({ type: AcademicYearDto, nullable: true })
   current_year: AcademicYearDto | null;

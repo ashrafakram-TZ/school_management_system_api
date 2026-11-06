@@ -4,7 +4,14 @@ import { Repository } from 'typeorm';
 import { AppException } from '@app/common';
 import { appConfig, AppConfig } from '../../config/configuration';
 import { todayIn } from '../../shared/dates';
-import { HolidayDto, HolidayInputDto, HolidayQueryDto, UpdateHolidayDto } from './dto/setup.dto';
+import {
+  HolidayDto,
+  HolidayInputDto,
+  HolidayQueryDto,
+  MobileHolidayDto,
+  MobileHolidayOverviewDto,
+  UpdateHolidayDto,
+} from './dto/setup.dto';
 import { Holiday } from './entities/holiday.entity';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -34,6 +41,34 @@ export class HolidaysService {
   async next(schoolId: number): Promise<HolidayDto | null> {
     const [first] = await this.list(schoolId, { upcoming: true, type: 'holiday' });
     return first ?? null;
+  }
+
+  async overview(schoolId: number, query?: HolidayQueryDto): Promise<MobileHolidayOverviewDto> {
+    const today = todayIn(this.app.timeZone);
+    const all = await this.list(schoolId, { ...query, upcoming: false });
+    const todayMs = Date.parse(`${today}T00:00:00Z`);
+
+    const decorate = (h: HolidayDto): MobileHolidayDto => {
+      const hMs = Date.parse(`${h.date}T00:00:00Z`);
+      const daysUntil = Math.round((hMs - todayMs) / DAY_MS);
+      return {
+        ...h,
+        days_until: daysUntil >= 0 ? daysUntil : null,
+      };
+    };
+
+    const decoratedAll = all.map(decorate);
+    const upcoming = decoratedAll.filter((h) => {
+      const endOrStart = h.end_date ?? h.date;
+      return endOrStart >= today;
+    });
+    const next = upcoming.find((h) => h.type === 'holiday') ?? upcoming[0] ?? null;
+
+    return {
+      next_holiday: next ?? null,
+      upcoming,
+      all: decoratedAll,
+    };
   }
 
   async create(schoolId: number, dto: HolidayInputDto): Promise<HolidayDto> {

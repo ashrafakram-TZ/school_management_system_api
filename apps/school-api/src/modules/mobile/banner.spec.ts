@@ -72,4 +72,14 @@ describe('teacherBanners', () => {
       message: 'In P2 (09:35), the boys of 6 - A sit with 6 - B.',
     });
   });
+
+  it('informs the teacher about an upcoming holiday', () => {
+    const [banner] = teacherBanners(day({ upcomingHoliday: { name: 'Deepavali', date: '2026-11-08', daysUntil: 2 } }));
+    expect(banner).toMatchObject({
+      code: 'UPCOMING_HOLIDAY',
+      title: 'Upcoming Holiday: Deepavali',
+      message: 'Deepavali on 2026-11-08 (in 2 days). School will remain closed.',
+      action: { screen: 'holidays' },
+    });
+  });
 });

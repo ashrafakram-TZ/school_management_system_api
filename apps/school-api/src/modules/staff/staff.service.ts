@@ -271,6 +271,34 @@ export class StaffService {
     return this.presentDocuments(documents);
   }
 
+  async getDocumentByUserId(schoolId: number, userId: number, documentId: number): Promise<StaffDocumentDto> {
+    const row = await this.staff.findOne({
+      where: { user_id: userId, school_id: schoolId },
+    });
+    if (!row) throw AppException.notFound('Staff record not found', 'STAFF_NOT_FOUND');
+    const doc = await this.documents.findOne({
+      where: { id: documentId, staff_id: row.id },
+    });
+    if (!doc) throw AppException.notFound('Document not found', 'DOCUMENT_NOT_FOUND');
+    return (await this.presentDocuments([doc]))[0];
+  }
+
+  async getBankByUserId(schoolId: number, userId: number): Promise<BankDetailsDto> {
+    const row = await this.staff
+      .createQueryBuilder('st')
+      .addSelect(['st.bank_account_enc', 'st.pan_enc'])
+      .where('st.user_id = :userId AND st.school_id = :schoolId', { userId, schoolId })
+      .getOne();
+    if (!row) throw AppException.notFound('Staff record not found', 'STAFF_NOT_FOUND');
+    return {
+      account_holder: row.bank_account_holder,
+      bank_name: row.bank_name,
+      ifsc: row.bank_ifsc,
+      account_no: row.bank_account_enc ? this.cipher.decrypt(row.bank_account_enc) : null,
+      pan: row.pan_enc ? this.cipher.decrypt(row.pan_enc) : null,
+    };
+  }
+
   async create(schoolId: number, dto: CreateStaffDto, actor: AuthUser): Promise<StaffDetailDto> {
     this.assertCanGrant(dto.role_codes, actor);
     const roles = await this.access.resolveRoles(dto.role_codes, actor.roles);

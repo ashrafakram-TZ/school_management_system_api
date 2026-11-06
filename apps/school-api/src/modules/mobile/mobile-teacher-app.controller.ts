@@ -17,6 +17,8 @@ import { MobileAccessService } from './mobile-access.service';
 import { TeacherAppService } from './teacher-app.service';
 import { TEACHER_MODULE_TAGS } from './teacher-modules.catalog';
 import { PARENT_MODULE_TAGS } from './parent-modules.catalog';
+import { HolidaysService } from '../setup/holidays.service';
+import { HolidayQueryDto, MobileHolidayOverviewDto } from '../setup/dto/setup.dto';
 
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
@@ -165,6 +167,7 @@ export class MobileParentBannerController {
   constructor(
     private readonly access: MobileAccessService,
     private readonly banner: BannerService,
+    private readonly holidaysService: HolidaysService,
   ) {}
 
   @Get('banner')
@@ -176,5 +179,17 @@ export class MobileParentBannerController {
   @ApiEnvelope(BannerListDto)
   banners(@CurrentUser() user: AuthUser) {
     return this.banner.parent(this.access.teacherSchool(user));
+  }
+
+  @Get('holidays')
+  @ApiTags(PARENT_MODULE_TAGS.MODULE_8)
+  @ApiOperation({
+    summary: 'School holidays calendar, upcoming holidays, and next holiday countdown',
+    description:
+      'Next upcoming school holiday countdown, list of upcoming holidays from today, and full academic year holiday calendar for parents.',
+  })
+  @ApiEnvelope(MobileHolidayOverviewDto)
+  holidays(@CurrentUser() user: AuthUser, @Query() query: HolidayQueryDto) {
+    return this.holidaysService.overview(this.access.teacherSchool(user), query);
   }
 }

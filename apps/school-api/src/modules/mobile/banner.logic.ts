@@ -2,6 +2,7 @@ import { BannerDto, BannerSeverity } from './dto/banner.dto';
 
 export interface TeacherDayFacts {
   holiday: string | null;
+  upcomingHoliday?: { name: string; date: string; daysUntil: number } | null;
   sunday: boolean;
   leaveType: string | null;
   checkedIn: boolean;
@@ -28,7 +29,7 @@ export function teacherBanners(facts: TeacherDayFacts): BannerDto[] {
       severity: 'info',
       title: facts.holiday ? `Holiday: ${facts.holiday}` : 'No school today',
       message: facts.holiday ? 'There are no classes today.' : 'Sunday. There are no classes today.',
-      action: { screen: 'home' },
+      action: { screen: 'holidays' },
     });
   } else if (facts.leaveType) {
     banners.push({
@@ -39,6 +40,17 @@ export function teacherBanners(facts: TeacherDayFacts): BannerDto[] {
       action: { screen: 'timetable' },
     });
   } else {
+    if (facts.upcomingHoliday) {
+      const daysText =
+        facts.upcomingHoliday.daysUntil === 1 ? 'tomorrow' : `in ${facts.upcomingHoliday.daysUntil} days`;
+      banners.push({
+        code: 'UPCOMING_HOLIDAY',
+        severity: 'info',
+        title: `Upcoming Holiday: ${facts.upcomingHoliday.name}`,
+        message: `${facts.upcomingHoliday.name} on ${facts.upcomingHoliday.date} (${daysText}). School will remain closed.`,
+        action: { screen: 'holidays' },
+      });
+    }
     if (!facts.checkedIn) {
       const late = facts.now >= facts.reportingTime;
       banners.push({
@@ -132,4 +144,33 @@ export function schoolBanners(rows: SchoolBannerSource[]): BannerDto[] {
     image_url: row.image?.url ?? null,
     thumbnail_url: row.image?.thumbnail_url ?? null,
   }));
+}
+
+export interface ParentDayFacts {
+  holiday: string | null;
+  upcomingHoliday?: { name: string; date: string; daysUntil: number } | null;
+  sunday: boolean;
+}
+
+export function parentBanners(facts: ParentDayFacts, rows: SchoolBannerSource[]): BannerDto[] {
+  const banners: BannerDto[] = [];
+  if (facts.holiday || facts.sunday) {
+    banners.push({
+      code: 'HOLIDAY_TODAY',
+      severity: 'info',
+      title: facts.holiday ? `Holiday: ${facts.holiday}` : 'No school today',
+      message: facts.holiday ? 'There are no classes today.' : 'Sunday. There are no classes today.',
+      action: { screen: 'holidays' },
+    });
+  } else if (facts.upcomingHoliday) {
+    const daysText = facts.upcomingHoliday.daysUntil === 1 ? 'tomorrow' : `in ${facts.upcomingHoliday.daysUntil} days`;
+    banners.push({
+      code: 'UPCOMING_HOLIDAY',
+      severity: 'info',
+      title: `Upcoming Holiday: ${facts.upcomingHoliday.name}`,
+      message: `${facts.upcomingHoliday.name} on ${facts.upcomingHoliday.date} (${daysText}). School will remain closed.`,
+      action: { screen: 'holidays' },
+    });
+  }
+  return [...banners, ...schoolBanners(rows)];
 }

@@ -19,6 +19,6 @@ import { SubjectsService } from './subjects.service';
   imports: [TypeOrmModule.forFeature([AcademicYear, Term, Holiday, SchoolClass, Section, Subject, ClassSubject])],
   controllers: [SetupController],
   providers: [SetupService, AcademicYearsService, ClassesService, SubjectsService, HolidaysService],
-  exports: [AcademicYearsService, ClassesService],
+  exports: [AcademicYearsService, ClassesService, HolidaysService],
 })
 export class SetupModule {}

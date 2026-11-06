@@ -57,8 +57,12 @@ const TAGS: [string, string][] = [
     'Student fee status, term invoices, payment breakdown and downloadable receipt PDFs',
   ],
   [
-    'Mobile · Teacher · Module 1: Profile, Qualifications & Documents',
-    'Staff profile, qualifications, verification documents and home alerts',
+    'Mobile · Parent · Module 8: Academic Calendar & Holidays',
+    'School holidays calendar, upcoming holidays, national holidays and term breaks',
+  ],
+  [
+    'Mobile · Teacher · Module 1: Profile, Qualifications, Bank & Documents',
+    'Staff profile, qualifications, bank details, performance appraisals, verification documents and home alerts',
   ],
   [
     'Mobile · Teacher · Module 2: Attendance, Leaves & Check-in',
@@ -92,6 +96,10 @@ const TAGS: [string, string][] = [
     'Mobile · Teacher · Module 9: Student Fees Overview',
     'Class teacher overview of student fee payment statuses (paid, due, overdue)',
   ],
+  [
+    'Mobile · Teacher · Module 10: Academic Calendar & Holidays',
+    'School holidays calendar, upcoming holidays, national holidays and term breaks',
+  ],
   ['Admin · Dashboard', 'Home screen in one call: counts per section, gated by the caller’s permissions'],
   ['Admin · Students', 'Students, class placement, guardians, roll numbers, Excel import'],
   ['Admin · Student records', 'Documents with verification, health and vaccinations, behaviour notes'],
@@ -99,7 +107,10 @@ const TAGS: [string, string][] = [
     'Admin · ID cards, TC and promotion',
     'ID card PDFs with signed QR, transfer and withdrawal with TC, year-end promotion',
   ],
-  ['Admin · Staff', 'Staff profiles, qualifications, documents, encrypted bank details, teacher assignments'],
+  [
+    'Admin · Staff',
+    'Staff profiles, qualifications, documents, encrypted bank details, performance appraisals, teacher assignments',
+  ],
   ['Admin · Attendance', 'Student attendance board, marking, monthly reports and parent leave requests'],
   ['Admin · Staff attendance', 'Staff check-in board, monthly view and manual correction'],
   ['Admin · Staff leave', 'Leave types, balances and the HOD then principal approval flow'],
@@ -271,7 +282,7 @@ const AUDIENCES: AudienceConfig[] = [
     jsonSlug: 'mobile-teacher',
     title: 'Tamilzorous School Management API · Mobile · Teacher App',
     intro:
-      'Routes for the Teacher & Staff mobile app: Modules 1 to 9 (profile, qualifications, attendance, timetable, homework, exams, chat, video, payroll, fees), plus sign-in, `/me` and files.',
+      'Routes for the Teacher & Staff mobile app: Modules 1 to 10 (profile, qualifications, bank, attendance, timetable, homework, exams, chat, video, payroll, fees, holidays), plus sign-in, `/me` and files.',
     owns: /^\/api\/v\d+\/mobile\/teacher\//,
     stripPrefix: 'Mobile · Teacher · ',
   },
@@ -281,7 +292,7 @@ const AUDIENCES: AudienceConfig[] = [
     jsonSlug: 'mobile-parent',
     title: 'Tamilzorous School Management API · Mobile · Parent App',
     intro:
-      'Routes for the Parent mobile app: Modules 1 to 7 (children, attendance, academics, diary, chat, video, student fees), plus sign-in, `/me` and files.',
+      'Routes for the Parent mobile app: Modules 1 to 8 (children, attendance, academics, diary, chat, video, student fees, holidays), plus sign-in, `/me` and files.',
     owns: /^\/api\/v\d+\/mobile\/parent\//,
     stripPrefix: 'Mobile · Parent · ',
   },
@@ -430,7 +441,7 @@ const SWAGGER_CUSTOM_JS = `
         inGroupClass: 'in-group-teacher',
         icon: '📱',
         title: 'Mobile · Teacher App',
-        badge: '9 Modules',
+        badge: '10 Modules',
         desc: 'Profile, Qualifications, Attendance, Timetable, Class Diary, Exams, Parent Chat, Video Meetings, Payroll and Fees Overview',
         match: function(tag) { return tag.indexOf('Teacher') !== -1; }
       },
@@ -440,7 +451,7 @@ const SWAGGER_CUSTOM_JS = `
         inGroupClass: 'in-group-parent',
         icon: '👨‍👩‍👧',
         title: 'Mobile · Parent App',
-        badge: '7 Modules',
+        badge: '8 Modules',
         desc: 'Home & Children, Attendance & Leave, Academics & Report Card, Class Diary & Behaviour, Teacher Chat, Video Meetings and Student Fees',
         match: function(tag) { return tag.indexOf('Parent') !== -1; }
       },
@@ -610,8 +621,8 @@ export function setupSwagger(app: INestApplication): void {
   const URL_ITEMS = [
     { name: 'Admin web', url: '/api/docs/admin-json' },
     { name: 'Mobile app (All)', url: '/api/docs/mobile-json' },
-    { name: 'Mobile · Teacher App (Modules 1 - 9)', url: '/api/docs/mobile-teacher-json' },
-    { name: 'Mobile · Parent App (Modules 1 - 7)', url: '/api/docs/mobile-parent-json' },
+    { name: 'Mobile · Teacher App (Modules 1 - 10)', url: '/api/docs/mobile-teacher-json' },
+    { name: 'Mobile · Parent App (Modules 1 - 8)', url: '/api/docs/mobile-parent-json' },
     { name: 'Mobile · Driver App', url: '/api/docs/mobile-driver-json' },
   ];
 
