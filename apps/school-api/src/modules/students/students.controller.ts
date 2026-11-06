@@ -55,6 +55,7 @@ import {
 } from './dto/student-response.dto';
 import { GuardiansService } from './guardians.service';
 import { StudentsService } from './students.service';
+import { PARENT_MODULE_TAGS } from '../mobile/parent-modules.catalog';
 
 @ApiTags('Admin · Students')
 @ApiBearerAuth()
@@ -375,7 +376,7 @@ export class AdmissionsController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_1)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.PARENT)

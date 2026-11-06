@@ -5,13 +5,15 @@ import { ApiPdf, pdfFile } from '../../shared/pdf-response';
 import { ROLES } from '../access/access.catalog';
 import { SectionFeesDto, StudentFeesDto } from './dto/fees.dto';
 import { FeesService } from './fees.service';
+import { TEACHER_MODULE_TAGS } from '../mobile/teacher-modules.catalog';
+import { PARENT_MODULE_TAGS } from '../mobile/parent-modules.catalog';
 
 const teacherSchool = (user: AuthUser): number => {
   if (!user.school_id) throw AppException.forbidden('Your account is not linked to a school', 'NO_SCHOOL');
   return user.school_id;
 };
 
-@ApiTags('Mobile · Teacher')
+@ApiTags(TEACHER_MODULE_TAGS.MODULE_9)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
@@ -38,7 +40,7 @@ export class MobileTeacherFeesController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_7)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.PARENT)

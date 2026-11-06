@@ -15,8 +15,9 @@ import { BannerListDto } from './dto/banner.dto';
 import { StudentHistoryDto, TodayTimetableDto } from './dto/teacher-app.dto';
 import { MobileAccessService } from './mobile-access.service';
 import { TeacherAppService } from './teacher-app.service';
+import { TEACHER_MODULE_TAGS } from './teacher-modules.catalog';
+import { PARENT_MODULE_TAGS } from './parent-modules.catalog';
 
-@ApiTags('Mobile · Teacher')
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
@@ -31,6 +32,7 @@ export class MobileTeacherAppController {
   ) {}
 
   @Get('banner')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_1)
   @ApiOperation({
     summary: 'Alert banner for the Staff app home screen',
     description: [
@@ -56,6 +58,7 @@ export class MobileTeacherAppController {
   }
 
   @Get('timetable/today')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({
     summary: 'Home: today’s periods in bell order with the class, subject, room, student count and present count',
     description:
@@ -67,6 +70,7 @@ export class MobileTeacherAppController {
   }
 
   @Get('students/:id/history')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({
     summary:
       'Student full history: profile and parents, attendance (year and this month), leave, remarks, achievements, health, documents and ID card',
@@ -81,6 +85,7 @@ export class MobileTeacherAppController {
   }
 
   @Get('sections/:id/activity-ranking')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({
     summary: 'Students of my section ranked by sports and activity points',
     description:
@@ -105,6 +110,7 @@ export class MobileTeacherAppController {
   }
 
   @Get('students/:id/achievements')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({ summary: 'Achievements of a student in my sections' })
   @ApiEnvelope(AchievementDto, { isArray: true })
   @ApiErrors(HttpStatus.NOT_FOUND)
@@ -115,6 +121,7 @@ export class MobileTeacherAppController {
   }
 
   @Post('students/:id/achievements')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ResponseMessage('Achievement added')
   @ApiOperation({ summary: 'Add an achievement for a student in my sections. Parents are told.' })
   @ApiEnvelope(AchievementDto, { status: HttpStatus.CREATED, message: 'Achievement added' })
@@ -130,7 +137,7 @@ export class MobileTeacherAppController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_4)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.PARENT)
@@ -149,7 +156,7 @@ export class MobileParentAchievementsController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_1)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.PARENT)

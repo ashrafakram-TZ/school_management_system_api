@@ -52,8 +52,10 @@ import { RoutesService } from '../transport/routes.service';
 import { TimetableService } from '../timetable/timetable.service';
 import { TodayAttendanceDto } from './dto/mobile.dto';
 import { MobileAccessService } from './mobile-access.service';
+import { TEACHER_MODULE_TAGS } from './teacher-modules.catalog';
+import { PARENT_MODULE_TAGS } from './parent-modules.catalog';
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_2)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.PARENT)
@@ -150,7 +152,6 @@ export class MobileParentAttendanceController {
   }
 }
 
-@ApiTags('Mobile · Teacher')
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
@@ -169,6 +170,7 @@ export class MobileTeacherAttendanceController {
   ) {}
 
   @Get('check-in')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ApiOperation({ summary: 'My check-in today: time in, time out, late or not, and how far from school' })
   @ApiEnvelope(CheckInStatusDto)
   checkInStatus(@CurrentUser() user: AuthUser) {
@@ -176,6 +178,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Post('check-in')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @HttpCode(HttpStatus.OK)
   @ResponseMessage('Checked in')
   @ApiOperation({
@@ -189,6 +192,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Post('check-out')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @HttpCode(HttpStatus.OK)
   @ResponseMessage('Checked out')
   @ApiOperation({ summary: 'Check out with the phone location' })
@@ -199,6 +203,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Get('my-attendance')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ApiOperation({ summary: 'My attendance for a month' })
   @ApiEnvelope(StaffMonthDto)
   myAttendance(@CurrentUser() user: AuthUser, @Query() query: MonthQueryDto) {
@@ -206,6 +211,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Get('sections/:id/attendance')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ApiOperation({ summary: 'Attendance roster of my section for a date (period 0 is the morning attendance)' })
   @ApiEnvelope(RosterDto)
   @ApiErrors(HttpStatus.NOT_FOUND)
@@ -216,6 +222,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Put('sections/:id/attendance')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ResponseMessage('Attendance saved')
   @ApiOperation({ summary: 'Save attendance of my section. Parents of absent students get an alert.' })
   @ApiEnvelope(RosterDto, { message: 'Attendance saved' })
@@ -227,6 +234,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Get('timetable')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({ summary: 'My weekly timetable' })
   @ApiEnvelope(TeacherTimetableDto)
   myTimetable(@CurrentUser() user: AuthUser) {
@@ -234,6 +242,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Get('substitutions')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({ summary: 'Classes I take in place of absent teachers, today and the next 7 days' })
   @ApiEnvelope(MySubstitutionDto, { isArray: true })
   mySubstitutions(@CurrentUser() user: AuthUser) {
@@ -241,6 +250,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Get('leave-balances')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ApiOperation({ summary: 'My leave balance per leave type this year' })
   @ApiEnvelope(LeaveBalanceDto, { isArray: true })
   balances(@CurrentUser() user: AuthUser) {
@@ -248,6 +258,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Get('leaves')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ApiOperation({ summary: 'My leave requests, newest first' })
   @ApiEnvelope(StaffLeaveDto, { isArray: true })
   myLeaves(@CurrentUser() user: AuthUser) {
@@ -255,6 +266,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Post('leaves')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ResponseMessage('Leave request sent')
   @ApiOperation({
     summary: 'Apply for leave. It goes to the HOD of my department first, then the principal.',
@@ -267,6 +279,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Post('leaves/:id/cancel')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @HttpCode(HttpStatus.OK)
   @ResponseMessage('Leave request cancelled')
   @ApiOperation({ summary: 'Cancel my request while it is still waiting' })
@@ -277,6 +290,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Get('leaves/preview')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ApiOperation({
     summary: 'Before applying: working days, balance after, and my periods on those days',
     description:
@@ -289,6 +303,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Get('leave-approvals')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ApiOperation({
     summary: 'Staff leave requests waiting for me (HOD or principal)',
     description:
@@ -300,6 +315,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Post('leave-approvals/:id/decision')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @HttpCode(HttpStatus.OK)
   @ResponseMessage('Decision saved')
   @ApiOperation({ summary: 'Approve or reject a staff leave request waiting for me' })
@@ -314,6 +330,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Get('student-leaves')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @ApiOperation({ summary: 'Leave requests from parents of my class-teacher sections' })
   @ApiEnvelope(StudentLeaveDto, { paginated: true })
   async parentRequests(@CurrentUser() user: AuthUser, @Query() query: StudentLeaveQueryDto) {
@@ -322,6 +339,7 @@ export class MobileTeacherAttendanceController {
   }
 
   @Post('student-leaves/:id/decision')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_2)
   @HttpCode(HttpStatus.OK)
   @ResponseMessage('Decision saved')
   @ApiOperation({ summary: 'Approve or reject a parent’s leave request (class teacher only). The parent is told.' })

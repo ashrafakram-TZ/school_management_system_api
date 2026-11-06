@@ -25,8 +25,10 @@ import {
 } from '../diary/dto/diary.dto';
 import { DiaryService } from '../diary/diary.service';
 import { MobileAccessService } from './mobile-access.service';
+import { TEACHER_MODULE_TAGS } from './teacher-modules.catalog';
+import { PARENT_MODULE_TAGS } from './parent-modules.catalog';
 
-@ApiTags('Mobile · Teacher')
+@ApiTags(TEACHER_MODULE_TAGS.MODULE_4)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
@@ -86,7 +88,7 @@ export class MobileTeacherDiaryController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_4)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.PARENT)

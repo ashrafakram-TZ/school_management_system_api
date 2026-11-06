@@ -15,8 +15,11 @@ import { MobileAccessService } from './mobile-access.service';
 import { MyClassDto, TeacherProfileDto } from './dto/teacher-insights.dto';
 import { TeacherAppService } from './teacher-app.service';
 import { TeacherInsightsService } from './teacher-insights.service';
+import { QualificationDto, StaffDocumentDto } from '../staff/dto/staff-response.dto';
+import { StaffService } from '../staff/staff.service';
+import { TEACHER_MODULE_TAGS } from './teacher-modules.catalog';
+import { PARENT_MODULE_TAGS } from './parent-modules.catalog';
 
-@ApiTags('Mobile · Parent')
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.PARENT)
@@ -29,6 +32,7 @@ export class MobileParentChildController {
   ) {}
 
   @Get()
+  @ApiTags(PARENT_MODULE_TAGS.MODULE_1)
   @ApiOperation({ summary: 'Child card: class, section, class teacher, photo, blood group and tile badges' })
   @ApiEnvelope(ChildCardDto)
   card(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
@@ -36,6 +40,7 @@ export class MobileParentChildController {
   }
 
   @Get('id-card')
+  @ApiTags(PARENT_MODULE_TAGS.MODULE_1)
   @ApiOperation({ summary: 'Digital ID card. Draw qr_token as a QR code; the bus attendant scans it.' })
   @ApiEnvelope(DigitalIdDto)
   async idCard(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
@@ -43,6 +48,7 @@ export class MobileParentChildController {
   }
 
   @Get('documents')
+  @ApiTags(PARENT_MODULE_TAGS.MODULE_4)
   @ApiOperation({ summary: 'Documents the school shares with parents, with their verification status' })
   @ApiEnvelope(StudentDocumentDto, { isArray: true })
   async documents(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
@@ -50,6 +56,7 @@ export class MobileParentChildController {
   }
 
   @Get('health')
+  @ApiTags(PARENT_MODULE_TAGS.MODULE_4)
   @ApiOperation({ summary: 'Health summary and vaccination log (read-only)' })
   @ApiEnvelope(HealthDto)
   async health(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
@@ -57,6 +64,7 @@ export class MobileParentChildController {
   }
 
   @Get('behaviour')
+  @ApiTags(PARENT_MODULE_TAGS.MODULE_4)
   @ApiOperation({ summary: 'Behaviour notes shared with parents (read-only)' })
   @ApiEnvelope(BehaviourNoteDto, { isArray: true })
   async behaviour(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
@@ -64,7 +72,6 @@ export class MobileParentChildController {
   }
 }
 
-@ApiTags('Mobile · Teacher')
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
@@ -77,9 +84,11 @@ export class MobileTeacherController {
     private readonly records: StudentRecordsService,
     private readonly teacherApp: TeacherAppService,
     private readonly insights: TeacherInsightsService,
+    private readonly staff: StaffService,
   ) {}
 
   @Get('classes')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({
     summary: 'My classes this year: class teacher sections first, then sections I teach, with my subjects',
     description:
@@ -91,6 +100,7 @@ export class MobileTeacherController {
   }
 
   @Get('profile')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_1)
   @ApiOperation({
     summary: 'My staff profile: designation, department, subjects, HOD, class teacher of, weekly load',
     description: 'headline is ready for the Me screen, for example "Mathematics · HOD · Class teacher 6 - A".',
@@ -101,7 +111,33 @@ export class MobileTeacherController {
     return this.insights.profile(this.access.teacherSchool(user), user);
   }
 
+  @Get('qualifications')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_1)
+  @ApiOperation({
+    summary: 'My academic and professional qualifications',
+    description: 'Degrees, specializations, institutions and completion years on file with the school.',
+  })
+  @ApiEnvelope(QualificationDto, { isArray: true })
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  qualifications(@CurrentUser() user: AuthUser) {
+    return this.staff.getQualificationsByUserId(this.access.teacherSchool(user), user.id);
+  }
+
+  @Get('documents')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_1)
+  @ApiOperation({
+    summary: 'My uploaded staff verification documents',
+    description:
+      'ID proof, address proof, degree certificate, experience letter, etc. with verification status, verifier name, remarks and download file URL.',
+  })
+  @ApiEnvelope(StaffDocumentDto, { isArray: true })
+  @ApiErrors(HttpStatus.NOT_FOUND)
+  documents(@CurrentUser() user: AuthUser) {
+    return this.staff.getDocumentsByUserId(this.access.teacherSchool(user), user.id);
+  }
+
   @Get('sections/:id/students')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({
     summary: 'Class roster, sorted by roll number, name or exam rank, ascending or descending',
     description:
@@ -117,6 +153,7 @@ export class MobileTeacherController {
   }
 
   @Get('sections/:id/benches')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({
     summary: 'Students split into bench groups (First, Second, … Last), in roll number, name or rank order',
     description:
@@ -132,6 +169,7 @@ export class MobileTeacherController {
   }
 
   @Get('students/:id')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({ summary: 'Student detail (read-only) for a student in one of my sections' })
   @ApiEnvelope(StudentDetailDto)
   @ApiErrors(HttpStatus.NOT_FOUND)
@@ -142,6 +180,7 @@ export class MobileTeacherController {
   }
 
   @Get('students/:id/behaviour')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ApiOperation({ summary: 'Behaviour notes of a student in one of my sections' })
   @ApiEnvelope(BehaviourNoteDto, { isArray: true })
   @ApiErrors(HttpStatus.NOT_FOUND)
@@ -152,6 +191,7 @@ export class MobileTeacherController {
   }
 
   @Post('students/:id/behaviour')
+  @ApiTags(TEACHER_MODULE_TAGS.MODULE_3)
   @ResponseMessage('Note added')
   @ApiOperation({ summary: 'Add a behaviour note. Parents see it unless visible_to_parent is false.' })
   @ApiEnvelope(BehaviourNoteDto, { status: HttpStatus.CREATED, message: 'Note added' })

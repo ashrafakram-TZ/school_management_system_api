@@ -6,6 +6,7 @@ import { ApiSchoolHeader, SchoolId } from '../../shared/school-context';
 import { PERMISSIONS, ROLES } from '../access/access.catalog';
 import { ReportCardDto, ReportCardQueryDto, SectionReportCardQueryDto } from './dto/report-card.dto';
 import { ReportCardsService } from './report-cards.service';
+import { PARENT_MODULE_TAGS } from '../mobile/parent-modules.catalog';
 
 const SCOPE_HELP =
   'No term_id or exam_id: the whole academic year, every term side by side. term_id: only that term. exam_id: only that exam. Only published exams are included.';
@@ -68,7 +69,7 @@ export class SectionReportCardsController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_3)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.PARENT)

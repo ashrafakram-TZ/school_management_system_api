@@ -29,6 +29,7 @@ import {
 } from './dto/staff-input.dto';
 import {
   BankDetailsDto,
+  QualificationDto,
   StaffDetailDto,
   StaffDocumentDto,
   StaffInsightsDto,
@@ -216,6 +217,35 @@ export class StaffService {
           periods_per_week: item.periods_per_week,
         })),
     };
+  }
+
+  async getQualificationsByUserId(schoolId: number, userId: number): Promise<QualificationDto[]> {
+    const row = await this.staff.findOne({
+      where: { user_id: userId, school_id: schoolId },
+      relations: { qualifications: true },
+    });
+    if (!row) throw AppException.notFound('Staff record not found', 'STAFF_NOT_FOUND');
+    return (row.qualifications ?? [])
+      .sort((a, b) => (b.year_completed ?? 0) - (a.year_completed ?? 0))
+      .map(({ id, degree, specialization, institution, year_completed }) => ({
+        id,
+        degree,
+        specialization,
+        institution,
+        year_completed,
+      }));
+  }
+
+  async getDocumentsByUserId(schoolId: number, userId: number): Promise<StaffDocumentDto[]> {
+    const row = await this.staff.findOne({
+      where: { user_id: userId, school_id: schoolId },
+    });
+    if (!row) throw AppException.notFound('Staff record not found', 'STAFF_NOT_FOUND');
+    const documents = await this.documents.find({
+      where: { staff_id: row.id },
+      order: { created_at: 'DESC' },
+    });
+    return this.presentDocuments(documents);
   }
 
   async create(schoolId: number, dto: CreateStaffDto, actor: AuthUser): Promise<StaffDetailDto> {

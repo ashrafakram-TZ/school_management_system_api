@@ -38,6 +38,7 @@ import {
   SalaryStructureInputDto,
 } from './dto/payroll.dto';
 import { PayrollService } from './payroll.service';
+import { TEACHER_MODULE_TAGS } from '../mobile/teacher-modules.catalog';
 
 @ApiTags('Admin · Payroll')
 @ApiBearerAuth()
@@ -195,7 +196,7 @@ export class MyPayslipsController {
   }
 }
 
-@ApiTags('Mobile · Teacher')
+@ApiTags(TEACHER_MODULE_TAGS.MODULE_8)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)

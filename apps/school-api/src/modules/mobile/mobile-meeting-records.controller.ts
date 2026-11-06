@@ -26,6 +26,8 @@ import {
   TeacherNoteUpdateDto,
 } from '../meetings/dto/meeting-records.dto';
 import { MeetingRecordsService } from '../meetings/meeting-records.service';
+import { TEACHER_MODULE_TAGS } from './teacher-modules.catalog';
+import { PARENT_MODULE_TAGS } from './parent-modules.catalog';
 
 const NOTES_DESCRIPTION =
   'My own notes plus the teacher’s shared notes, oldest first. Allowed before, during and after the meeting; ' +
@@ -37,7 +39,7 @@ const RECAP_DESCRIPTION =
   'After a completed or missed meeting: the meeting, how long each person was in the call, the notes I may see and the chat. ' +
   '409 MEETING_NOT_OVER while it is still open; 409 MEETING_CANCELLED.';
 
-@ApiTags('Mobile · Teacher')
+@ApiTags(TEACHER_MODULE_TAGS.MODULE_7)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
@@ -130,7 +132,7 @@ export class MobileTeacherMeetingRecordsController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_6)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.PARENT)

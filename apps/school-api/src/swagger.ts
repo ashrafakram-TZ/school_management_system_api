@@ -28,8 +28,70 @@ const TAGS: [string, string][] = [
   ['Me · Notifications', 'In-app notification centre'],
   ['Me · Announcements', 'School announcements sent to me, unread count and read receipts'],
   ['Files', 'Uploads and signed download links'],
-  ['Mobile · Parent', 'Parent app screens'],
-  ['Mobile · Teacher', 'Staff app screens for teachers'],
+  [
+    'Mobile · Parent · Module 1: Home, Children & Profile',
+    'Child switcher, child card, digital ID card with QR and school home banner',
+  ],
+  [
+    'Mobile · Parent · Module 2: Attendance, Leave & Transport',
+    'Monthly attendance calendar, leave application, bus route and live bus tracking',
+  ],
+  [
+    'Mobile · Parent · Module 3: Academics, Exams & Report Card',
+    'Published exam results, term marksheet and downloadable official report card PDF',
+  ],
+  [
+    'Mobile · Parent · Module 4: Class Diary, Behaviour & Health',
+    'Homework feed, teacher behaviour notes, student health records and achievements',
+  ],
+  [
+    'Mobile · Parent · Module 5: Teacher Chat & Communication',
+    'Direct 1:1 chat conversations with child teachers with office hours and read receipts',
+  ],
+  [
+    'Mobile · Parent · Module 6: Video Meetings & Recap',
+    'Agora video meetings with teachers, private call notes, in-call chat and post-meeting recap',
+  ],
+  [
+    'Mobile · Parent · Module 7: Student Fees & Receipts',
+    'Student fee status, term invoices, payment breakdown and downloadable receipt PDFs',
+  ],
+  [
+    'Mobile · Teacher · Module 1: Profile, Qualifications & Documents',
+    'Staff profile, qualifications, verification documents and home alerts',
+  ],
+  [
+    'Mobile · Teacher · Module 2: Attendance, Leaves & Check-in',
+    'Mobile geo check-in, staff attendance, student section attendance, leave application and approvals',
+  ],
+  [
+    'Mobile · Teacher · Module 3: Timetable, Classes & Students',
+    'Weekly timetable, substitutions, class roster, seating bench plan, student 360 and achievements',
+  ],
+  [
+    'Mobile · Teacher · Module 4: Class Diary & Homework',
+    'Homework, announcements and notes to classes with parent read receipts',
+  ],
+  [
+    'Mobile · Teacher · Module 5: Exams & Marks Entry',
+    'Teacher exam schedule, subject marks entry and ranked student results',
+  ],
+  [
+    'Mobile · Teacher · Module 6: Parent Chat & Communication',
+    'Direct 1:1 chat conversations between teachers and parents with real-time updates',
+  ],
+  [
+    'Mobile · Teacher · Module 7: Video Meetings & Recap',
+    'Agora video meetings with parents, notes, in-call chat and post-meeting recap',
+  ],
+  [
+    'Mobile · Teacher · Module 8: Payroll & Payslips',
+    'Staff monthly salary slips, earnings/deductions breakdown and PDF downloads',
+  ],
+  [
+    'Mobile · Teacher · Module 9: Student Fees Overview',
+    'Class teacher overview of student fee payment statuses (paid, due, overdue)',
+  ],
   ['Admin · Dashboard', 'Home screen in one call: counts per section, gated by the caller’s permissions'],
   ['Admin · Students', 'Students, class placement, guardians, roll numbers, Excel import'],
   ['Admin · Student records', 'Documents with verification, health and vaccinations, behaviour notes'],
@@ -199,6 +261,23 @@ const UI_OPTIONS: SwaggerCustomOptions['swaggerOptions'] = {
   displayRequestDuration: true,
 };
 
+function cleanTags(document: OpenAPIObject): OpenAPIObject {
+  const validTagNames = new Set(TAGS.map(([name]) => name));
+  const paths = Object.fromEntries(
+    Object.entries(document.paths).map(([path, item]) => {
+      const operations = Object.fromEntries(
+        Object.entries(item).map(([method, operation]) => {
+          if (typeof operation !== 'object' || !operation || !('tags' in operation)) return [method, operation];
+          const tags = (operation.tags as string[] | undefined)?.filter((tag) => validTagNames.has(tag)) ?? [];
+          return [method, { ...operation, tags }];
+        }),
+      );
+      return [path, operations];
+    }),
+  );
+  return { ...document, paths };
+}
+
 function slice(document: OpenAPIObject, owns: RegExp, title: string, intro: string): OpenAPIObject {
   const paths = Object.fromEntries(
     Object.entries(document.paths).filter(([path]) => owns.test(path) || SHARED.test(path)),
@@ -229,7 +308,7 @@ export function setupSwagger(app: INestApplication): void {
     .setVersion('1.0')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' });
   TAGS.forEach(([name, description]) => builder.addTag(name, description));
-  const document = describeSignIn(SwaggerModule.createDocument(app, builder.build()));
+  const document = cleanTags(describeSignIn(SwaggerModule.createDocument(app, builder.build())));
 
   for (const audience of AUDIENCES) {
     SwaggerModule.setup(

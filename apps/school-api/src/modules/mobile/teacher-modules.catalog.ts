@@ -1,0 +1,11 @@
+export const TEACHER_MODULE_TAGS = {
+  MODULE_1: 'Mobile · Teacher · Module 1: Profile, Qualifications & Documents',
+  MODULE_2: 'Mobile · Teacher · Module 2: Attendance, Leaves & Check-in',
+  MODULE_3: 'Mobile · Teacher · Module 3: Timetable, Classes & Students',
+  MODULE_4: 'Mobile · Teacher · Module 4: Class Diary & Homework',
+  MODULE_5: 'Mobile · Teacher · Module 5: Exams & Marks Entry',
+  MODULE_6: 'Mobile · Teacher · Module 6: Parent Chat & Communication',
+  MODULE_7: 'Mobile · Teacher · Module 7: Video Meetings & Recap',
+  MODULE_8: 'Mobile · Teacher · Module 8: Payroll & Payslips',
+  MODULE_9: 'Mobile · Teacher · Module 9: Student Fees Overview',
+} as const;

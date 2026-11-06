@@ -21,13 +21,15 @@ import {
   TeacherExamDto,
 } from './dto/exams.dto';
 import { ExamsService } from './exams.service';
+import { TEACHER_MODULE_TAGS } from '../mobile/teacher-modules.catalog';
+import { PARENT_MODULE_TAGS } from '../mobile/parent-modules.catalog';
 
 const teacherSchool = (user: AuthUser): number => {
   if (!user.school_id) throw AppException.forbidden('Your account is not linked to a school', 'NO_SCHOOL');
   return user.school_id;
 };
 
-@ApiTags('Mobile · Teacher')
+@ApiTags(TEACHER_MODULE_TAGS.MODULE_5)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
@@ -98,7 +100,7 @@ export class MobileTeacherExamsController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_3)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND)
 @RequireRoles(ROLES.PARENT)

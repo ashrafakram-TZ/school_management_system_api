@@ -16,12 +16,14 @@ import {
   ThreadsQueryDto,
 } from '../chat/dto/chat.dto';
 import { MobileAccessService } from './mobile-access.service';
+import { TEACHER_MODULE_TAGS } from './teacher-modules.catalog';
+import { PARENT_MODULE_TAGS } from './parent-modules.catalog';
 
 const REALTIME =
   'Live updates on socket.io namespace /comm with { auth: { token } }: chat.message, chat.read, chat.updated, chat.typing ' +
   '(send chat.typing { thread_id }).';
 
-@ApiTags('Mobile · Teacher')
+@ApiTags(TEACHER_MODULE_TAGS.MODULE_6)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
@@ -101,7 +103,7 @@ export class MobileTeacherChatController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_5)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.PARENT)

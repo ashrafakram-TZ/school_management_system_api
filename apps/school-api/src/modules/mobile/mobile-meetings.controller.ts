@@ -18,6 +18,8 @@ import {
 import { MeetingsService } from '../meetings/meetings.service';
 import { AssignmentsService } from '../staff/assignments.service';
 import { MobileAccessService } from './mobile-access.service';
+import { TEACHER_MODULE_TAGS } from './teacher-modules.catalog';
+import { PARENT_MODULE_TAGS } from './parent-modules.catalog';
 
 const JOIN_DESCRIPTION =
   'Returns the Agora app_id, channel_name, uid and RTC token for the Flutter agora_rtc_engine. ' +
@@ -26,7 +28,7 @@ const JOIN_DESCRIPTION =
   'Tokens are short-lived: renew with POST .../token. ' +
   '409 MEETING_NOT_OPEN, MEETING_ENDED or MEETING_CANCELLED; 503 VIDEO_NOT_CONFIGURED when the Agora keys are not set.';
 
-@ApiTags('Mobile · Teacher')
+@ApiTags(TEACHER_MODULE_TAGS.MODULE_7)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.TEACHER, ROLES.HOD, ROLES.PRINCIPAL)
@@ -159,7 +161,7 @@ export class MobileTeacherMeetingsController {
   }
 }
 
-@ApiTags('Mobile · Parent')
+@ApiTags(PARENT_MODULE_TAGS.MODULE_6)
 @ApiBearerAuth()
 @ApiErrors(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN)
 @RequireRoles(ROLES.PARENT)
