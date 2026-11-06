@@ -155,6 +155,18 @@ export class SchoolProfileDto {
   @IsInt()
   @Min(1)
   logo_file_id?: number | null;
+
+  @ApiPropertyOptional({
+    example: 42,
+    nullable: true,
+    type: Number,
+    description: 'Uploaded image (POST /files, purpose school_signature). Shown on payslips. null removes it.',
+  })
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
+  @IsInt()
+  @Min(1)
+  signature_file_id?: number | null;
 }
 
 export class CreateSchoolDto extends SchoolProfileDto {
@@ -262,6 +274,16 @@ export class SchoolDto {
     description: 'Signed link to the logo, valid for FILE_URL_TTL_SECONDS',
   })
   logo_url: string | null;
+
+  @ApiProperty({ nullable: true, type: Number, example: 42 })
+  signature_file_id: number | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Signed link to the signature, valid for FILE_URL_TTL_SECONDS',
+  })
+  signature_url: string | null;
 
   @ApiProperty()
   is_active: boolean;

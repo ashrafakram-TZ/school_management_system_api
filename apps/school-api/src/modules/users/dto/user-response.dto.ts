@@ -29,6 +29,13 @@ export class SchoolSummaryDto {
     description: 'Signed link to the school logo; null when the school has none',
   })
   logo_url: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Signed link to the school signature; null when the school has none',
+  })
+  signature_url: string | null;
 }
 
 export class UserListItemDto {

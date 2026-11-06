@@ -30,7 +30,11 @@ export class UsersService {
   async profile(userId: number): Promise<UserProfileDto> {
     const access = await this.access.load(userId);
     if (!access) throw AppException.notFound('User not found');
-    return toUserProfile(access, this.files.linkFor(access.user.school?.logo_file_id ?? null));
+    return toUserProfile(
+      access,
+      this.files.linkFor(access.user.school?.logo_file_id ?? null),
+      this.files.linkFor(access.user.school?.signature_file_id ?? null),
+    );
   }
 
   async updateMe(userId: number, dto: UpdateMeDto): Promise<UserProfileDto> {
