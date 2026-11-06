@@ -165,6 +165,22 @@ export class ExamsService {
         }),
       );
       await this.addClasses(manager, schoolId, exam, dto.class_ids);
+      if (dto.subjects && dto.subjects.length) {
+        for (const item of dto.subjects) {
+          if (item.exam_date && (item.exam_date < dto.start_date || item.exam_date > dto.end_date)) {
+            throw AppException.badRequest('Subject exam date must be within the exam dates', 'EXAM_DATE_OUT_OF_RANGE');
+          }
+          await manager.update(
+            ExamSubject,
+            { exam_id: exam.id, class_id: item.class_id, subject_id: item.subject_id },
+            {
+              max_marks: item.max_marks ?? DEFAULT_MAX_MARKS,
+              pass_marks: item.pass_marks ?? DEFAULT_PASS_MARKS,
+              exam_date: item.exam_date ?? null,
+            },
+          );
+        }
+      }
       return exam.id;
     });
     return this.get(schoolId, id);
@@ -195,6 +211,22 @@ export class ExamsService {
       if (removed.length) await manager.delete(ExamSubject, { exam_id: exam.id, class_id: In(removed) });
       const added = dto.class_ids.filter((classId) => !current.includes(classId));
       if (added.length) await this.addClasses(manager, schoolId, exam, added);
+      if (dto.subjects && dto.subjects.length) {
+        for (const item of dto.subjects) {
+          if (item.exam_date && (item.exam_date < start || item.exam_date > end)) {
+            throw AppException.badRequest('Subject exam date must be within the exam dates', 'EXAM_DATE_OUT_OF_RANGE');
+          }
+          await manager.update(
+            ExamSubject,
+            { exam_id: exam.id, class_id: item.class_id, subject_id: item.subject_id },
+            {
+              max_marks: item.max_marks ?? DEFAULT_MAX_MARKS,
+              pass_marks: item.pass_marks ?? DEFAULT_PASS_MARKS,
+              exam_date: item.exam_date ?? null,
+            },
+          );
+        }
+      }
     });
     return this.get(schoolId, id);
   }

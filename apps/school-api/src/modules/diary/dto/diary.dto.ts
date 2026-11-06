@@ -14,6 +14,7 @@ import {
 } from 'class-validator';
 import { ListQueryDto, PaginationDto } from '@app/common';
 import { IsDateOnly } from '../../../shared/dates';
+import { DIARY_REVIEW_MODES, DiaryReviewMode } from '../../schools/entities/school.entity';
 import { FileDto } from '../../files/dto/file.dto';
 import { RefDto } from '../../students/dto/student-response.dto';
 import {
@@ -324,6 +325,6 @@ export class DiaryInsightsDto {
   @ApiProperty({ example: 9, description: 'Published homework due in the next 7 days' })
   homework_due_this_week: number;
 
-  @ApiProperty({ enum: ['all', 'remarks'], example: 'remarks', description: 'The school setting in force' })
-  review_mode: 'all' | 'remarks';
+  @ApiProperty({ enum: DIARY_REVIEW_MODES, example: 'remarks', description: 'The school setting in force' })
+  review_mode: DiaryReviewMode;
 }

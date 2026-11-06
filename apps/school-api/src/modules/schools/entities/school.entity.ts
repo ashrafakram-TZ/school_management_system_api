@@ -4,7 +4,7 @@ import { Column, Entity, Index } from 'typeorm';
 export const SCHOOL_BOARDS = ['CBSE', 'STATE', 'ICSE', 'OTHER'] as const;
 export type SchoolBoard = (typeof SCHOOL_BOARDS)[number];
 
-export const DIARY_REVIEW_MODES = ['all', 'remarks'] as const;
+export const DIARY_REVIEW_MODES = ['all', 'remarks', 'none'] as const;
 export type DiaryReviewMode = (typeof DIARY_REVIEW_MODES)[number];
 
 @Entity('schools')

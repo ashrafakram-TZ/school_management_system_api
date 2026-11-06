@@ -38,6 +38,31 @@ export class ExamQueryDto extends ListQueryDto {
   academic_year_id?: number;
 }
 
+export class ExamSubjectInputDto {
+  @ApiProperty({ example: 6 })
+  @IsInt()
+  class_id: number;
+
+  @ApiProperty({ example: 4 })
+  @IsInt()
+  subject_id: number;
+
+  @ApiProperty({ example: 100 })
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  max_marks: number;
+
+  @ApiProperty({ example: 35 })
+  @IsInt()
+  @Min(0)
+  @Max(500)
+  pass_marks: number;
+
+  @IsDateOnly('2026-09-15', true)
+  exam_date?: string | null;
+}
+
 export class ExamInputDto {
   @ApiProperty({ example: 'Quarterly exam' })
   @Transform(trim)
@@ -72,6 +97,16 @@ export class ExamInputDto {
   @ArrayUnique()
   @IsInt({ each: true })
   class_ids: number[];
+
+  @ApiPropertyOptional({
+    type: [ExamSubjectInputDto],
+    description: 'Specific subject exam dates, max marks and pass marks',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ExamSubjectInputDto)
+  subjects?: ExamSubjectInputDto[];
 }
 
 export class UpdateExamDto {
@@ -105,31 +140,16 @@ export class UpdateExamDto {
   @ArrayUnique()
   @IsInt({ each: true })
   class_ids?: number[];
-}
 
-export class ExamSubjectInputDto {
-  @ApiProperty({ example: 6 })
-  @IsInt()
-  class_id: number;
-
-  @ApiProperty({ example: 4 })
-  @IsInt()
-  subject_id: number;
-
-  @ApiProperty({ example: 100 })
-  @IsInt()
-  @Min(1)
-  @Max(500)
-  max_marks: number;
-
-  @ApiProperty({ example: 35 })
-  @IsInt()
-  @Min(0)
-  @Max(500)
-  pass_marks: number;
-
-  @IsDateOnly('2026-09-15', true)
-  exam_date?: string | null;
+  @ApiPropertyOptional({
+    type: [ExamSubjectInputDto],
+    description: 'Specific subject exam dates, max marks and pass marks',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ExamSubjectInputDto)
+  subjects?: ExamSubjectInputDto[];
 }
 
 export class ExamSubjectsInputDto {

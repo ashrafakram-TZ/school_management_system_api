@@ -121,7 +121,7 @@ export class SchoolProfileDto {
     enum: DIARY_REVIEW_MODES,
     example: 'remarks',
     description:
-      'all: the office reviews every diary post before parents see it. remarks: only remarks and feedback are reviewed; homework and notes go out at once.',
+      'all: the office reviews every diary post before parents see it. remarks: only remarks and feedback are reviewed; homework and notes go out at once. none: no review; all posts go out at once.',
   })
   @IsOptional()
   @IsIn(DIARY_REVIEW_MODES)

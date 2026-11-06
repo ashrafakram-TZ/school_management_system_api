@@ -14,6 +14,13 @@ describe('diary review mode (School setup → Diary review)', () => {
     expect(initialStatus('remarks', 'homework')).toBe('published');
     expect(initialStatus('remarks', 'note')).toBe('published');
   });
+
+  it('none: no review, all posts go directly to parents', () => {
+    for (const type of ['homework', 'remark', 'feedback', 'note'] as const) {
+      expect(needsReview('none', type)).toBe(false);
+      expect(initialStatus('none', type)).toBe('published');
+    }
+  });
 });
 
 describe('editing', () => {
