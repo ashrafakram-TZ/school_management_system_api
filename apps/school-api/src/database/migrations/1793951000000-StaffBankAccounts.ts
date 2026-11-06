@@ -49,4 +49,3 @@ export class StaffBankAccounts1793951000000 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS "staff_bank_accounts"`);
   }
 }
-

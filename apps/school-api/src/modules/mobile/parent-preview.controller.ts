@@ -41,11 +41,7 @@ export class ParentPreviewController {
     description: 'Read-only. Uses the same services as /mobile/parent/children/:id and .../attendance/today.',
   })
   @ApiEnvelope(ParentPreviewDto)
-  async home(
-    @SchoolId() schoolId: number,
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async home(@SchoolId() schoolId: number, @Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
     await this.assertAccess(user, id);
     return this.preview.home(schoolId, id);
   }
@@ -56,11 +52,7 @@ export class ParentPreviewController {
     description: 'null when the student does not use the bus.',
   })
   @ApiEnvelope(ChildBusDto)
-  async bus(
-    @SchoolId() schoolId: number,
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async bus(@SchoolId() schoolId: number, @Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
     await this.assertAccess(user, id);
     return this.preview.bus(schoolId, id);
   }

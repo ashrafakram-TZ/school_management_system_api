@@ -192,16 +192,17 @@ export class StaffService {
       complete: Boolean(b.account_no_last4 && b.ifsc),
       is_primary: b.is_primary,
     }));
-    const primaryBank: BankSummaryDto = banksSummary.find((b) => b.is_primary) ?? banksSummary[0] ?? {
-      id: undefined,
-      account_holder: row.bank_account_holder,
-      bank_name: row.bank_name,
-      ifsc: row.bank_ifsc,
-      account_masked: masked(row.bank_account_last4),
-      pan_masked: masked(row.pan_last4),
-      complete: Boolean(row.bank_account_last4 && row.bank_ifsc),
-      is_primary: true,
-    };
+    const primaryBank: BankSummaryDto = banksSummary.find((b) => b.is_primary) ??
+      banksSummary[0] ?? {
+        id: undefined,
+        account_holder: row.bank_account_holder,
+        bank_name: row.bank_name,
+        ifsc: row.bank_ifsc,
+        account_masked: masked(row.bank_account_last4),
+        pan_masked: masked(row.pan_last4),
+        complete: Boolean(row.bank_account_last4 && row.bank_ifsc),
+        is_primary: true,
+      };
     return {
       ...this.toListItem(row, metrics.get(row.id)!, classTeacher.get(row.user_id) ?? [], todayIn(this.app.timeZone)),
       language: row.user.language,
@@ -532,7 +533,12 @@ export class StaffService {
     let accounts: BankDetailsInputDto[] = [];
     if (Array.isArray(payload)) {
       accounts = payload;
-    } else if (payload && typeof payload === 'object' && 'accounts' in payload && Array.isArray((payload as SaveStaffBanksDto).accounts)) {
+    } else if (
+      payload &&
+      typeof payload === 'object' &&
+      'accounts' in payload &&
+      Array.isArray((payload as SaveStaffBanksDto).accounts)
+    ) {
       accounts = (payload as SaveStaffBanksDto).accounts;
     } else if (payload && typeof payload === 'object') {
       accounts = [payload as BankDetailsInputDto];
