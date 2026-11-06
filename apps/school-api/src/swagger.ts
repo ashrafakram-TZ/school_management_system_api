@@ -237,21 +237,64 @@ ${document.info.description ?? ''}`,
 
 const SHARED = /^\/api\/(v\d+\/)?(auth|me|files|health)(\/|$)/;
 
-const AUDIENCES = [
+interface AudienceConfig {
+  slug: string;
+  path: string;
+  jsonSlug: string;
+  title: string;
+  intro: string;
+  owns: RegExp;
+  stripPrefix?: string;
+}
+
+const AUDIENCES: AudienceConfig[] = [
   {
     slug: 'admin',
+    path: 'api/docs/admin',
+    jsonSlug: 'admin',
     title: 'Tamilzorous School Management API · Admin web',
-    intro: 'Routes for the School Admin web: \`/admin/*\` and \`/integrations/*\`, plus sign-in, \`/me\` and files.',
+    intro: 'Routes for the School Admin web: `/admin/*` and `/integrations/*`, plus sign-in, `/me` and files.',
     owns: /^\/api\/v\d+\/(admin|integrations)\//,
   },
   {
     slug: 'mobile',
+    path: 'api/docs/mobile',
+    jsonSlug: 'mobile',
     title: 'Tamilzorous School Management API · Mobile app',
     intro:
-      'Routes for the Flutter app (Parent, Staff and Driver): \`/mobile/parent|teacher|driver/*\`, plus sign-in, \`/me\` and files.',
+      'Routes for the Flutter app (Parent, Staff and Driver): `/mobile/parent|teacher|driver/*`, plus sign-in, `/me` and files.',
     owns: /^\/api\/v\d+\/mobile\//,
   },
-] as const;
+  {
+    slug: 'mobile-teacher',
+    path: 'api/docs/mobile/teacher',
+    jsonSlug: 'mobile-teacher',
+    title: 'Tamilzorous School Management API · Mobile · Teacher App',
+    intro:
+      'Routes for the Teacher & Staff mobile app: Modules 1 to 9 (profile, qualifications, attendance, timetable, homework, exams, chat, video, payroll, fees), plus sign-in, `/me` and files.',
+    owns: /^\/api\/v\d+\/mobile\/teacher\//,
+    stripPrefix: 'Mobile · Teacher · ',
+  },
+  {
+    slug: 'mobile-parent',
+    path: 'api/docs/mobile/parent',
+    jsonSlug: 'mobile-parent',
+    title: 'Tamilzorous School Management API · Mobile · Parent App',
+    intro:
+      'Routes for the Parent mobile app: Modules 1 to 7 (children, attendance, academics, diary, chat, video, student fees), plus sign-in, `/me` and files.',
+    owns: /^\/api\/v\d+\/mobile\/parent\//,
+    stripPrefix: 'Mobile · Parent · ',
+  },
+  {
+    slug: 'mobile-driver',
+    path: 'api/docs/mobile/driver',
+    jsonSlug: 'mobile-driver',
+    title: 'Tamilzorous School Management API · Mobile · Driver App',
+    intro:
+      'Routes for the Driver and Attendant mobile app: bus route, stops, riders and trips, plus sign-in, `/me` and files.',
+    owns: /^\/api\/v\d+\/mobile\/driver\//,
+  },
+];
 
 const UI_OPTIONS: SwaggerCustomOptions['swaggerOptions'] = {
   persistAuthorization: true,
@@ -261,6 +304,222 @@ const UI_OPTIONS: SwaggerCustomOptions['swaggerOptions'] = {
   displayRequestDuration: true,
 };
 
+const SWAGGER_CUSTOM_CSS = `
+.swagger-group-banner {
+  margin: 28px 0 14px 0;
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border-left: 6px solid #64748b;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+.swagger-group-banner:hover {
+  background: #f1f5f9;
+}
+.swagger-group-banner.teacher-group {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
+.swagger-group-banner.teacher-group:hover {
+  background: #dcfce7;
+}
+.swagger-group-banner.parent-group {
+  border-left-color: #0284c7;
+  background: #f0f9ff;
+}
+.swagger-group-banner.parent-group:hover {
+  background: #e0f2fe;
+}
+.swagger-group-banner.driver-group {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+.swagger-group-banner.driver-group:hover {
+  background: #fef3c7;
+}
+.swagger-group-banner.core-group {
+  border-left-color: #6366f1;
+  background: #f5f3ff;
+}
+.swagger-group-banner.core-group:hover {
+  background: #ede9fe;
+}
+.swagger-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.swagger-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+.swagger-group-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: rgba(0,0,0,0.06);
+  color: #334155;
+}
+.swagger-group-toggle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.swagger-group-desc {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+.opblock-tag-section.in-group-teacher {
+  border-left: 3px solid #10b981;
+  margin-left: 12px;
+  padding-left: 10px;
+  border-radius: 4px;
+  transition: opacity 0.2s;
+}
+.opblock-tag-section.in-group-parent {
+  border-left: 3px solid #0284c7;
+  margin-left: 12px;
+  padding-left: 10px;
+  border-radius: 4px;
+  transition: opacity 0.2s;
+}
+.opblock-tag-section.in-group-driver {
+  border-left: 3px solid #f59e0b;
+  margin-left: 12px;
+  padding-left: 10px;
+  border-radius: 4px;
+  transition: opacity 0.2s;
+}
+.opblock-tag-section.in-group-core {
+  border-left: 3px solid #6366f1;
+  margin-left: 12px;
+  padding-left: 10px;
+  border-radius: 4px;
+  transition: opacity 0.2s;
+}
+`;
+
+const SWAGGER_CUSTOM_JS = `
+(function() {
+  function initSwaggerGroups() {
+    var container = document.querySelector('.swagger-ui .wrapper .block.col-12') || document.querySelector('.swagger-ui .wrapper') || document.querySelector('.swagger-ui');
+    if (!container) return;
+
+    var sections = Array.from(container.querySelectorAll('.opblock-tag-section'));
+    if (!sections.length) return;
+
+    if (container.querySelector('.swagger-group-banner')) return;
+
+    var groups = [
+      {
+        id: 'group-teacher',
+        className: 'teacher-group',
+        inGroupClass: 'in-group-teacher',
+        icon: '📱',
+        title: 'Mobile · Teacher App',
+        badge: '9 Modules',
+        desc: 'Profile, Qualifications, Attendance, Timetable, Class Diary, Exams, Parent Chat, Video Meetings, Payroll and Fees Overview',
+        match: function(tag) { return tag.indexOf('Teacher') !== -1; }
+      },
+      {
+        id: 'group-parent',
+        className: 'parent-group',
+        inGroupClass: 'in-group-parent',
+        icon: '👨‍👩‍👧',
+        title: 'Mobile · Parent App',
+        badge: '7 Modules',
+        desc: 'Home & Children, Attendance & Leave, Academics & Report Card, Class Diary & Behaviour, Teacher Chat, Video Meetings and Student Fees',
+        match: function(tag) { return tag.indexOf('Parent') !== -1; }
+      },
+      {
+        id: 'group-driver',
+        className: 'driver-group',
+        inGroupClass: 'in-group-driver',
+        icon: '🚌',
+        title: 'Mobile · Driver App',
+        badge: 'Driver App',
+        desc: 'Driver and attendant operations: bus route, stops and riders',
+        match: function(tag) { return tag.indexOf('Driver') !== -1; }
+      },
+      {
+        id: 'group-core',
+        className: 'core-group',
+        inGroupClass: 'in-group-core',
+        icon: '🔐',
+        title: 'Core & Shared Services',
+        badge: 'Auth & Files',
+        desc: 'OTP sign-in, token refresh, user profile, notifications, announcements and file uploads',
+        match: function(tag) {
+          return ['Auth', 'Me', 'Me · Notifications', 'Me · Announcements', 'Files', 'Health'].indexOf(tag) !== -1;
+        }
+      }
+    ];
+
+    groups.forEach(function(grp) {
+      var matchingSections = [];
+      sections.forEach(function(sec) {
+        var h3 = sec.querySelector('.opblock-tag');
+        var tag = h3 ? (h3.getAttribute('data-tag') || h3.textContent.trim()) : '';
+        if (grp.match(tag)) {
+          matchingSections.push(sec);
+          sec.classList.add(grp.inGroupClass);
+        }
+      });
+
+      if (matchingSections.length > 0) {
+        var firstSec = matchingSections[0];
+        var banner = document.createElement('div');
+        banner.className = 'swagger-group-banner ' + grp.className;
+        banner.innerHTML =
+          '<div class="swagger-group-header">' +
+            '<div class="swagger-group-title">' +
+              '<span>' + grp.icon + '</span>' +
+              '<span>' + grp.title + '</span>' +
+              '<span class="swagger-group-badge">' + grp.badge + '</span>' +
+            '</div>' +
+            '<div class="swagger-group-toggle">' +
+              '<span class="toggle-text">Collapse</span> ▾' +
+            '</div>' +
+          '</div>' +
+          '<p class="swagger-group-desc">' + grp.desc + '</p>';
+
+        var isCollapsed = false;
+        banner.addEventListener('click', function() {
+          isCollapsed = !isCollapsed;
+          matchingSections.forEach(function(s) {
+            s.style.display = isCollapsed ? 'none' : '';
+          });
+          var toggleIcon = banner.querySelector('.swagger-group-toggle');
+          if (toggleIcon) toggleIcon.innerHTML = isCollapsed ? '<span class="toggle-text">Expand</span> ▸' : '<span class="toggle-text">Collapse</span> ▾';
+        });
+
+        firstSec.parentNode.insertBefore(banner, firstSec);
+      }
+    });
+  }
+
+  var observer = new MutationObserver(function() {
+    initSwaggerGroups();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  setTimeout(initSwaggerGroups, 400);
+  setTimeout(initSwaggerGroups, 1200);
+})();
+`;
+
 function cleanTags(document: OpenAPIObject): OpenAPIObject {
   const validTagNames = new Set(TAGS.map(([name]) => name));
   const paths = Object.fromEntries(
@@ -268,7 +527,11 @@ function cleanTags(document: OpenAPIObject): OpenAPIObject {
       const operations = Object.fromEntries(
         Object.entries(item).map(([method, operation]) => {
           if (typeof operation !== 'object' || !operation || !('tags' in operation)) return [method, operation];
-          const tags = (operation.tags as string[] | undefined)?.filter((tag) => validTagNames.has(tag)) ?? [];
+          const tags =
+            (operation.tags as string[] | undefined)?.filter((tag) => {
+              if (tag.startsWith('Mobile')) return validTagNames.has(tag);
+              return true;
+            }) ?? [];
           return [method, { ...operation, tags }];
         }),
       );
@@ -278,15 +541,44 @@ function cleanTags(document: OpenAPIObject): OpenAPIObject {
   return { ...document, paths };
 }
 
-function slice(document: OpenAPIObject, owns: RegExp, title: string, intro: string): OpenAPIObject {
-  const paths = Object.fromEntries(
+function slice(
+  document: OpenAPIObject,
+  owns: RegExp,
+  title: string,
+  intro: string,
+  stripPrefix?: string,
+): OpenAPIObject {
+  let paths = Object.fromEntries(
     Object.entries(document.paths).filter(([path]) => owns.test(path) || SHARED.test(path)),
   );
+  if (stripPrefix) {
+    paths = Object.fromEntries(
+      Object.entries(paths).map(([path, item]) => {
+        const operations = Object.fromEntries(
+          Object.entries(item).map(([method, operation]) => {
+            if (typeof operation !== 'object' || !operation || !('tags' in operation)) return [method, operation];
+            const tags =
+              (operation.tags as string[] | undefined)?.map((tag) =>
+                tag.startsWith(stripPrefix) ? tag.slice(stripPrefix.length) : tag,
+              ) ?? [];
+            return [method, { ...operation, tags }];
+          }),
+        );
+        return [path, operations];
+      }),
+    );
+  }
   const used = new Set(
     Object.values(paths).flatMap((item) =>
       Object.values(item as Record<string, { tags?: string[] }>).flatMap((operation) => operation?.tags ?? []),
     ),
   );
+  const tags = (document.tags ?? [])
+    .map((tag) =>
+      stripPrefix && tag.name.startsWith(stripPrefix) ? { ...tag, name: tag.name.slice(stripPrefix.length) } : tag,
+    )
+    .filter((tag) => used.has(tag.name));
+
   return {
     ...document,
     info: {
@@ -297,7 +589,7 @@ function slice(document: OpenAPIObject, owns: RegExp, title: string, intro: stri
 ${document.info.description ?? DESCRIPTION}`,
     },
     paths,
-    tags: (document.tags ?? []).filter((tag) => used.has(tag.name)),
+    tags,
   };
 }
 
@@ -310,15 +602,33 @@ export function setupSwagger(app: INestApplication): void {
   TAGS.forEach(([name, description]) => builder.addTag(name, description));
   const document = cleanTags(describeSignIn(SwaggerModule.createDocument(app, builder.build())));
 
+  const customOptions: SwaggerCustomOptions = {
+    customCss: SWAGGER_CUSTOM_CSS,
+    customJsStr: SWAGGER_CUSTOM_JS,
+  };
+
+  const URL_ITEMS = [
+    { name: 'Admin web', url: '/api/docs/admin-json' },
+    { name: 'Mobile app (All)', url: '/api/docs/mobile-json' },
+    { name: 'Mobile · Teacher App (Modules 1 - 9)', url: '/api/docs/mobile-teacher-json' },
+    { name: 'Mobile · Parent App (Modules 1 - 7)', url: '/api/docs/mobile-parent-json' },
+    { name: 'Mobile · Driver App', url: '/api/docs/mobile-driver-json' },
+  ];
+
   for (const audience of AUDIENCES) {
     SwaggerModule.setup(
-      `api/docs/${audience.slug}`,
+      audience.path,
       app,
-      slice(document, audience.owns, audience.title, audience.intro),
+      slice(document, audience.owns, audience.title, audience.intro, audience.stripPrefix),
       {
-        jsonDocumentUrl: `api/docs/${audience.slug}-json`,
+        jsonDocumentUrl: `api/docs/${audience.jsonSlug}-json`,
         customSiteTitle: audience.title,
-        swaggerOptions: UI_OPTIONS,
+        explorer: true,
+        swaggerOptions: {
+          ...UI_OPTIONS,
+          urls: URL_ITEMS,
+        },
+        ...customOptions,
       },
     );
   }
@@ -329,10 +639,8 @@ export function setupSwagger(app: INestApplication): void {
     explorer: true,
     swaggerOptions: {
       ...UI_OPTIONS,
-      urls: AUDIENCES.map((audience) => ({
-        name: audience.slug === 'admin' ? 'Admin web' : 'Mobile app',
-        url: `/api/docs/${audience.slug}-json`,
-      })),
+      urls: URL_ITEMS,
     },
+    ...customOptions,
   });
 }
