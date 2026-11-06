@@ -135,6 +135,7 @@ describe('payslipPdf', () => {
       school_phone: '044 26201234',
       school_email: 'office@tamilzorous.edu',
       school_logo: null,
+      school_signature: null,
       month_label: 'October 2026',
       employee_no: 'EMP-0012',
       name: 'Rajesh Sharma',

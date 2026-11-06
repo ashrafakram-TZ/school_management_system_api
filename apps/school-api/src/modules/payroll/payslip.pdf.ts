@@ -8,6 +8,7 @@ export interface PayslipPdfData {
   school_email?: string | null;
   school_address: string | null;
   school_logo: Buffer | null;
+  school_signature?: Buffer | null;
   month_label: string;
   employee_no: string;
   name: string;
@@ -375,21 +376,47 @@ export async function payslipPdf(data: PayslipPdfData): Promise<Buffer> {
 
   // Right: Stylized Signature
   const sigX = right - 130;
-  doc.save();
-  doc.lineWidth(1.4).strokeColor('#111827');
-  doc
-    .moveTo(sigX + 15, bottomY + 14)
-    .bezierCurveTo(sigX + 30, bottomY - 2, sigX + 45, bottomY + 16, sigX + 60, bottomY + 6)
-    .stroke();
-  doc
-    .moveTo(sigX + 40, bottomY + 2)
-    .lineTo(sigX + 40, bottomY + 20)
-    .stroke();
-  doc
-    .moveTo(sigX + 32, bottomY + 10)
-    .bezierCurveTo(sigX + 45, bottomY + 4, sigX + 55, bottomY + 12, sigX + 70, bottomY + 8)
-    .stroke();
-  doc.restore();
+  if (data.school_signature) {
+    try {
+      doc.image(data.school_signature, sigX + 10, bottomY - 6, {
+        fit: [110, 26],
+        align: 'center',
+        valign: 'bottom',
+      });
+    } catch {
+      doc.save();
+      doc.lineWidth(1.4).strokeColor('#111827');
+      doc
+        .moveTo(sigX + 15, bottomY + 14)
+        .bezierCurveTo(sigX + 30, bottomY - 2, sigX + 45, bottomY + 16, sigX + 60, bottomY + 6)
+        .stroke();
+      doc
+        .moveTo(sigX + 40, bottomY + 2)
+        .lineTo(sigX + 40, bottomY + 20)
+        .stroke();
+      doc
+        .moveTo(sigX + 32, bottomY + 10)
+        .bezierCurveTo(sigX + 45, bottomY + 4, sigX + 55, bottomY + 12, sigX + 70, bottomY + 8)
+        .stroke();
+      doc.restore();
+    }
+  } else {
+    doc.save();
+    doc.lineWidth(1.4).strokeColor('#111827');
+    doc
+      .moveTo(sigX + 15, bottomY + 14)
+      .bezierCurveTo(sigX + 30, bottomY - 2, sigX + 45, bottomY + 16, sigX + 60, bottomY + 6)
+      .stroke();
+    doc
+      .moveTo(sigX + 40, bottomY + 2)
+      .lineTo(sigX + 40, bottomY + 20)
+      .stroke();
+    doc
+      .moveTo(sigX + 32, bottomY + 10)
+      .bezierCurveTo(sigX + 45, bottomY + 4, sigX + 55, bottomY + 12, sigX + 70, bottomY + 8)
+      .stroke();
+    doc.restore();
+  }
 
   doc
     .moveTo(sigX, bottomY + 22)
