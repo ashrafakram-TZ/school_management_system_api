@@ -17,4 +17,3 @@ export class SchoolSignature1793966000000 implements MigrationInterface {
     `);
   }
 }
-
